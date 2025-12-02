@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+pydantic
+pydantic-settings
+taospy
+pandas
+websockets
+python-dotenv
+sqlalchemy
+python-multipart

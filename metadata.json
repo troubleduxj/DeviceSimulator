@@ -1,0 +1,5 @@
+{
+  "name": "DeviceSimulator",
+  "description": "A Generative AI-powered IoT device simulation platform featuring dual-mode (AI/Local) physics engines, real-time 3D visualization, and telemetry analysis.",
+  "requestFramePermissions": []
+}
