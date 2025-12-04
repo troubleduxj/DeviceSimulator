@@ -157,6 +157,43 @@ export const DICTIONARY = {
     metricUnitPlaceholder: 'Unit',
     twinSuffix: 'TWIN',
     syncPrefix: 'SYNC',
+    
+    // New Features
+    advancedAndErrors: 'Advanced & Errors',
+    globalPhysicsConfig: 'Global Physics Configuration',
+    massKg: 'Mass (kg)',
+    maxVelocity: 'Max Velocity (m/s)',
+    paramErrorInjection: 'Parameter Error Injection',
+    driftRate: 'Drift Rate (/sec)',
+    anomalyProb: 'Anomaly Prob. (0-1)',
+    dropProb: 'Drop Prob. (MCAR)',
+    noNumericParams: 'No numeric parameters available for error injection.',
+    
+    general: 'General',
+    mqtt: 'MQTT',
+    modbus: 'Modbus',
+    
+    mqttConfig: 'MQTT Configuration',
+    brokerHost: 'Broker Host',
+    brokerPort: 'Broker Port',
+    enableMqttPush: 'Enable MQTT Push',
+    topicTemplate: 'Topic Template',
+    saveMqttSettings: 'Save MQTT Settings',
+    
+    modbusTcpServer: 'Modbus TCP Server',
+    tcpPort: 'TCP Port',
+    enableModbusServer: 'Enable Modbus Server',
+    mappingInfo: 'Mapping Info',
+    saveModbusSettings: 'Save Modbus Settings',
+    
+    exportCsv: 'Export CSV',
+    
+    logicRules: 'Logic Rules',
+    addRule: 'Add Rule',
+    condition: 'Condition',
+    action: 'Action',
+    ruleHint: 'e.g. temp > 80',
+    actionHint: 'e.g. status = "alarm"',
   },
   zh: {
     title: 'DeviceSimulator',
@@ -281,5 +318,42 @@ export const DICTIONARY = {
     metricUnitPlaceholder: '单位',
     twinSuffix: '孪生',
     syncPrefix: '同步',
+    
+    // New Features
+    advancedAndErrors: '高级与故障注入',
+    globalPhysicsConfig: '全局物理配置',
+    massKg: '质量 (kg)',
+    maxVelocity: '最大速度 (m/s)',
+    paramErrorInjection: '参数故障注入',
+    driftRate: '漂移率 (/秒)',
+    anomalyProb: '异常概率 (0-1)',
+    dropProb: '丢包概率 (MCAR)',
+    noNumericParams: '无可用数值参数用于故障注入。',
+    
+    general: '常规',
+    mqtt: 'MQTT',
+    modbus: 'Modbus',
+    
+    mqttConfig: 'MQTT 配置',
+    brokerHost: 'Broker 主机',
+    brokerPort: 'Broker 端口',
+    enableMqttPush: '启用 MQTT 推送',
+    topicTemplate: 'Topic 模板',
+    saveMqttSettings: '保存 MQTT 设置',
+    
+    modbusTcpServer: 'Modbus TCP 服务器',
+    tcpPort: 'TCP 端口',
+    enableModbusServer: '启用 Modbus 服务器',
+    mappingInfo: '映射信息',
+    saveModbusSettings: '保存 Modbus 设置',
+    
+    exportCsv: '导出 CSV',
+    
+    logicRules: '逻辑规则',
+    addRule: '添加规则',
+    condition: '条件',
+    action: '动作',
+    ruleHint: '例如: temp > 80',
+    actionHint: '例如: status = "alarm"',
   },
 };

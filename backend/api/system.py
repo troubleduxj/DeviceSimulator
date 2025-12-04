@@ -1,13 +1,47 @@
 from fastapi import APIRouter
 from services.tdengine_service import tdengine_service
-from services.config_service import ConfigService, TDengineConfig
+from services.config_service import ConfigService, TDengineConfig, SystemSettings
 from config.config import settings
 from services.database_service import Base, engine
+from services.protocols.mqtt_service import mqtt_service
+from services.protocols.modbus_service import modbus_service
+from services.protocols.opcua_service import opcua_service
 
 router = APIRouter()
 
 # 确保配置表存在
 TDengineConfig.__table__.create(bind=engine, checkfirst=True)
+SystemSettings.__table__.create(bind=engine, checkfirst=True)
+
+@router.get("/settings")
+def get_system_settings():
+    """获取系统全局配置"""
+    return ConfigService.get_system_settings()
+
+@router.put("/settings")
+def update_system_settings(settings: dict):
+    """更新系统全局配置"""
+    try:
+        success = ConfigService.update_system_settings(settings)
+        if not success:
+            return {"success": False, "message": "Failed to update settings"}
+            
+        # Restart services with new config
+        mqtt_service.start() # Will restart if config changed
+        modbus_service.start() # Will restart if config changed
+        
+        # Restart OPC UA Service
+        if settings.get("opcua_enabled"):
+            # Force restart to apply new config (endpoint)
+            if opcua_service.running:
+                opcua_service.stop()
+            opcua_service.start()
+        else:
+            opcua_service.stop()
+        
+        return {"success": True, "message": "Settings updated successfully"}
+    except Exception as e:
+        return {"success": False, "message": f"Error: {e}"}
 
 @router.get("/status")
 def get_system_status():

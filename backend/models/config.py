@@ -43,3 +43,41 @@ class TDengineConfig(Base):
             "database": "device_simulator",
             "enabled": False
         }
+
+class SystemSettings(Base):
+    """系统全局配置"""
+    __tablename__ = "system_settings"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # MQTT Config
+    mqtt_enabled = Column(Boolean, default=False, comment="启用MQTT推送")
+    mqtt_host = Column(String(255), default="localhost", comment="MQTT Broker地址")
+    mqtt_port = Column(Integer, default=1883, comment="MQTT Broker端口")
+    mqtt_user = Column(String(255), nullable=True, comment="MQTT用户名")
+    mqtt_password = Column(String(255), nullable=True, comment="MQTT密码")
+    mqtt_topic_template = Column(String(255), default="devices/{device_id}/data", comment="Topic模板")
+    
+    # Modbus Config
+    modbus_enabled = Column(Boolean, default=False, comment="启用Modbus Server")
+    modbus_port = Column(Integer, default=5020, comment="Modbus TCP端口")
+
+    # OPC UA Config
+    opcua_enabled = Column(Boolean, default=False, comment="启用OPC UA Server")
+    opcua_endpoint = Column(String(255), default="opc.tcp://0.0.0.0:4840/freeopcua/server/", comment="OPC UA Endpoint")
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    def to_dict(self):
+        return {
+            "mqtt_enabled": self.mqtt_enabled,
+            "mqtt_host": self.mqtt_host,
+            "mqtt_port": self.mqtt_port,
+            "mqtt_user": self.mqtt_user,
+            "mqtt_topic_template": self.mqtt_topic_template,
+            "modbus_enabled": self.modbus_enabled,
+            "modbus_port": self.modbus_port,
+            "opcua_enabled": self.opcua_enabled,
+            "opcua_endpoint": self.opcua_endpoint
+        }

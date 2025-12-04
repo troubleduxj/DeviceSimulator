@@ -102,6 +102,17 @@ class TDengineService:
                 print(f"连接TDengine Native失败: {e}")
                 print(f"错误详情: {str(e)}")
                 return False
+
+    def check_connection(self) -> bool:
+        """检查连接状态，如果未连接尝试连接"""
+        if self.conn:
+            # 如果已连接，直接返回True
+            # 注意：Native模式下连接可能断开，但为了性能，这里不做实时检测
+            # 实际操作失败时会自动重连
+            return True
+        
+        # 尝试连接
+        return self.connect()
     
     def disconnect(self):
         """断开与TDengine的连接"""
@@ -189,6 +200,12 @@ class TDengineService:
             res = self._rest_execute(sql)
             if res.get('code') == 0 or res.get('status') == 'succ':
                 return res.get('rows', 1)
+            
+            # 特殊处理：表已存在 (Code 1539: Table already exists)
+            # 即使使用了 IF NOT EXISTS，某些版本的 REST API 可能仍会返回此错误
+            if res.get('code') == 1539:
+                return 0
+
             raise Exception(f"TDengine REST执行失败: {res}")
         else:
             try:
@@ -203,23 +220,18 @@ class TDengineService:
                 raise e
     
     def create_table_for_device(self, device: Device) -> bool:
-        """为设备创建表"""
+        """为设备创建表 (独立表，不带Tags)"""
         table_name = f"`device_{device.id}`"
         
         # 构建表结构SQL
         columns_sql = "ts TIMESTAMP"
         for param in device.parameters:
             col_type = self._get_tdengine_type(param.type)
-            # Use param.id if available, otherwise sanitize param.name or use it as is (risky)
-            # Assuming param.id is available and valid for column name
-            col_name = param.id
+            col_name = param.id if hasattr(param, 'id') and param.id else param.name
             columns_sql += f", `{col_name}` {col_type}"
         
-        # 构建标签SQL
-        tags_sql = f"device_id NCHAR(32), device_name NCHAR(64), device_type NCHAR(32)"
-        
-        # 创建表SQL
-        sql = f"CREATE TABLE IF NOT EXISTS {table_name} ({columns_sql}) TAGS ({tags_sql})"
+        # 独立表不应该有TAGS
+        sql = f"CREATE TABLE IF NOT EXISTS {table_name} ({columns_sql})"
         
         try:
             self.execute_update(sql)
@@ -230,39 +242,71 @@ class TDengineService:
     
     def _get_tdengine_type(self, param_type: str) -> str:
         """将参数类型转换为TDengine数据类型"""
-        if param_type == "数值":
+        if param_type == "数值" or param_type == "NUMBER":
             return "DOUBLE"
-        elif param_type == "布尔":
+        elif param_type == "布尔" or param_type == "BOOLEAN":
             return "BOOL"
-        elif param_type == "字符串":
+        elif param_type == "字符串" or param_type == "STRING":
             return "NCHAR(255)"
         else:
             return "DOUBLE"  # 默认使用DOUBLE类型
 
     def create_super_table(self, name: str, parameters: List[Any]) -> bool:
-        """创建超级表"""
-        # columns
-        columns_sql = "ts TIMESTAMP"
-        for param in parameters:
-            # Handle both object (Device.parameters) and dict (Category.parameters)
-            p_type = param.type if hasattr(param, 'type') else param.get('type')
-            # Use ID for column name instead of name (which is for display)
-            p_id = param.id if hasattr(param, 'id') else param.get('id')
+        """创建超级表 (支持Schema Evolution)"""
+        # 1. Check if STABLE exists
+        exists_sql = f"SHOW STABLES LIKE '{name}'"
+        existing = self.execute_query(exists_sql)
+        
+        if not existing:
+            # Create new
+            columns_sql = "ts TIMESTAMP"
+            for param in parameters:
+                p_type = param.type if hasattr(param, 'type') else param.get('type')
+                p_id = param.id if hasattr(param, 'id') else param.get('id')
+                col_type = self._get_tdengine_type(p_type)
+                columns_sql += f", `{p_id}` {col_type}"
             
-            col_type = self._get_tdengine_type(p_type)
-            columns_sql += f", `{p_id}` {col_type}"
-        
-        # tags (Fixed tags for now)
-        tags_sql = "device_id NCHAR(64), device_name NCHAR(64), device_model NCHAR(64)"
-        
-        sql = f"CREATE STABLE IF NOT EXISTS {name} ({columns_sql}) TAGS ({tags_sql})"
-        try:
-            print(f"创建超级表 SQL: {sql}")
-            self.execute_update(sql)
-            return True
-        except Exception as e:
-            print(f"创建超级表失败: {e}")
-            return False
+            tags_sql = "device_id NCHAR(64), device_name NCHAR(64), device_model NCHAR(64)"
+            sql = f"CREATE STABLE IF NOT EXISTS {name} ({columns_sql}) TAGS ({tags_sql})"
+            
+            try:
+                print(f"创建超级表 SQL: {sql}")
+                self.execute_update(sql)
+                return True
+            except Exception as e:
+                print(f"创建超级表失败: {e}")
+                return False
+        else:
+            # STABLE exists, check columns and add missing ones
+            try:
+                desc_sql = f"DESCRIBE {name}"
+                cols_info = self.execute_query(desc_sql)
+                # cols_info format depends on connector, usually list of dicts with 'Field', 'Type', etc.
+                # or execute_query normalizes it.
+                # Based on execute_query impl, it returns list of dicts. 
+                # Keys depend on TDengine version but usually 'Field', 'Type', 'Length', 'Note'
+                
+                existing_cols = set()
+                for col in cols_info:
+                    # Handle different case keys if necessary, usually capitalized
+                    field = col.get('Field') or col.get('field')
+                    if field:
+                        existing_cols.add(field)
+                
+                for param in parameters:
+                    p_id = param.id if hasattr(param, 'id') else param.get('id')
+                    if p_id not in existing_cols:
+                        # Add column
+                        p_type = param.type if hasattr(param, 'type') else param.get('type')
+                        col_type = self._get_tdengine_type(p_type)
+                        alter_sql = f"ALTER STABLE {name} ADD COLUMN `{p_id}` {col_type}"
+                        print(f"更新超级表结构: {alter_sql}")
+                        self.execute_update(alter_sql)
+                        
+                return True
+            except Exception as e:
+                print(f"检查/更新超级表失败: {e}")
+                return False
 
     def create_sub_table(self, super_table: str, sub_table: str, tags: Dict[str, Any]) -> bool:
         """创建子表"""

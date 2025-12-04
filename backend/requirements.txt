@@ -8,3 +8,7 @@ websockets
 python-dotenv
 sqlalchemy
 python-multipart
+simpleeval
+pymodbus
+paho-mqtt
+asyncua

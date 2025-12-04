@@ -1,50 +1,66 @@
-import sys
+import taos
 import os
+from dotenv import load_dotenv
 
-# Add backend to path
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+load_dotenv()
 
-from services.config_service import ConfigService
-from services.tdengine_service import tdengine_service
+TDENGINE_HOST = os.getenv("TDENGINE_HOST", "localhost")
+TDENGINE_PORT = int(os.getenv("TDENGINE_PORT", 6030))
+TDENGINE_USER = os.getenv("TDENGINE_USER", "root")
+TDENGINE_PASSWORD = os.getenv("TDENGINE_PASSWORD", "taosdata")
+TDENGINE_DB = os.getenv("TDENGINE_DB", "iot_simulator")
 
 def diagnose():
-    print("=== TDengine 诊断工具 ===")
-    
-    # 1. 检查配置
-    config = ConfigService.get_tdengine_config()
-    print(f"\n1. 当前配置:")
-    print(f"   Host: {config.get('host')}")
-    print(f"   Port: {config.get('port')}")
-    print(f"   User: {config.get('user')}")
-    print(f"   Database: {config.get('database')}")
-    print(f"   Enabled: {config.get('enabled')}")
-    
-    if not config.get('enabled'):
-        print("\n[警告] TDengine 未启用。请在系统设置中启用 TDengine。")
-        return
-
-    # 2. 测试连接
-    print(f"\n2. 测试连接...")
-    if tdengine_service.connect():
-        print("   [成功] 连接成功")
-    else:
-        print("   [失败] 无法连接到 TDengine。请检查服务是否运行，以及防火墙设置。")
-        return
-
-    # 3. 检查超级表
-    print(f"\n3. 检查超级表...")
+    print(f"Connecting to {TDENGINE_HOST}:{TDENGINE_PORT} user={TDENGINE_USER} db={TDENGINE_DB}...")
     try:
-        tables = tdengine_service.execute_query("SHOW STABLES")
-        print(f"   发现 {len(tables)} 个超级表:")
-        for t in tables:
-            # TDengine 3.x REST API uses 'stable_name', 2.x or native might use 'name'
-            name = t.get('name') or t.get('stable_name')
-            print(f"   - {name}")
-    except Exception as e:
-        print(f"   查询超级表失败: {e}")
+        conn = taos.connect(
+            host=TDENGINE_HOST,
+            user=TDENGINE_USER,
+            password=TDENGINE_PASSWORD,
+            # Do not specify database initially to check if it exists
+        )
+        print("Connected successfully.")
+        cursor = conn.cursor()
+        
+        cursor.execute("SHOW DATABASES")
+        dbs = cursor.fetchall()
+        print("Databases:", dbs)
+        
+        db_exists = False
+        for db in dbs:
+            if db[0] == TDENGINE_DB:
+                db_exists = True
+                break
+        
+        if not db_exists:
+            print(f"Database {TDENGINE_DB} does not exist!")
+            return
 
-    # 4. 检查最近的日志/错误 (模拟)
-    # 实际上我们无法查看到之前的控制台日志，但我们可以提示用户查看。
+        conn.select_db(TDENGINE_DB)
+        print(f"Selected DB {TDENGINE_DB}")
+
+        # List all stables
+        print("--- Super Tables ---")
+        cursor.execute("SHOW STABLES")
+        stables = cursor.fetchall()
+        if not stables:
+            print("No Super Tables found.")
+            
+        for st in stables:
+            st_name = st[0]
+            print(f"STable: {st_name}")
+            
+            # Describe each stable
+            cursor.execute(f"DESCRIBE {st_name}")
+            cols = cursor.fetchall()
+            for col in cols:
+                print(f"  - {col[0]} ({col[1]})")
+                
+    except Exception as e:
+        print(f"Error: {e}")
+    finally:
+        if 'conn' in locals():
+            conn.close()
 
 if __name__ == "__main__":
     diagnose()

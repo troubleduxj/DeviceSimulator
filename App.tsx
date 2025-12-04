@@ -6,6 +6,7 @@ import { INITIAL_DEVICES, DICTIONARY } from './constants';
 import { fetchAiSimulationBatch } from './services/geminiService';
 import { generateLocalData } from './services/physicsService';
 import { backendService } from './services/backendService';
+import { formatCSVTimestamp } from './utils/timeUtils';
 
 // Icons & UI
 import { 
@@ -20,7 +21,6 @@ import { AddDeviceModal } from './components/AddDeviceModal';
 import { DeviceManager } from './components/DeviceManager';
 import { SystemManager } from './components/SystemManager';
 import { CategoryManager } from './components/CategoryManager';
-import { SimulationModelManager } from './components/SimulationModelManager';
 import { Dashboard } from './components/Dashboard';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
@@ -34,7 +34,7 @@ const App: React.FC = () => {
   const [simulationMode, setSimulationMode] = useState<SimulationMode>('Backend');
   const [language, setLanguage] = useState<'en' | 'zh'>('en');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [metricsViewMode, setMetricsViewMode] = useState<'list' | 'grid'>('list');
+  const [metricsViewMode, setMetricsViewMode] = useState<'grid' | 'list'>('grid');
   const [currentView, setCurrentView] = useState<'monitor' | 'devices' | 'categories' | 'models' | 'system' | 'dashboard'>('dashboard');
   
   // --- Simulation State ---
@@ -141,9 +141,13 @@ const App: React.FC = () => {
         if (device.status === 'running') {
           backendService.fetchDeviceData(device.id).then(step => {
             if (step) {
+              // console.log('Backend Data Received:', step); // Debug log
+              
               // Deduplicate based on timestamp to avoid adding same data point
               setHistory(prev => {
                 if (prev.length > 0 && prev[prev.length - 1].timestamp === step.timestamp) {
+                   // If timestamp matches, check if values changed (maybe backend time is stuck but values update?)
+                   // Ideally backend time should tick. We'll assume strictly time-based for now.
                    return prev;
                 }
                 const newHistory = [...prev, step];
@@ -223,10 +227,66 @@ const App: React.FC = () => {
     setDevices(prev => prev.map(d => d.id === updated.id ? updated : d));
   };
 
-  const handleScenarioChange = (scenario: string) => {
-    updateDevice({ ...activeDevice, currentScenario: scenario });
+  const handleScenarioChange = async (scenario: string) => {
+    const updatedDevice = { ...activeDevice, currentScenario: scenario };
+    updateDevice(updatedDevice);
+    
     // Clear buffer to force AI to react to new scenario immediately
     bufferRef.current = [];
+
+    // Backend Mode: Apply Scenario Logic via Parameter Updates
+    if (simulationMode === 'Backend' && activeDevice.parameters) {
+        try {
+            // Deep copy parameters
+            const newParams = JSON.parse(JSON.stringify(activeDevice.parameters));
+            
+            // Apply logic based on scenario
+            if (scenario === 'High Load') {
+                newParams.forEach((p: any) => {
+                    if (p.type === '数值') { // ParameterType.NUMBER
+                        p.min_value = (p.min_value || 0) * 1.2;
+                        p.max_value = (p.max_value || 100) * 1.2;
+                        if (!p.error_config) p.error_config = {};
+                        p.error_config.anomaly_probability = 0.05;
+                    }
+                });
+            } else if (scenario === 'Unstable Output' || scenario === 'Error State') {
+                newParams.forEach((p: any) => {
+                    if (p.type === '数值') {
+                        if (!p.error_config) p.error_config = {};
+                        p.error_config.anomaly_probability = 0.2;
+                        p.error_config.drift_rate = 5.0;
+                    }
+                });
+            } else if (scenario === 'Idle') {
+                newParams.forEach((p: any) => {
+                    if (p.type === '数值') {
+                        p.min_value = 0;
+                        p.max_value = 10; // Low value
+                    }
+                });
+            } else if (scenario === 'Normal Operation' || scenario === 'Precision Cutting') {
+                // Reset logic would require storing original values, 
+                // but for now we assume 'Normal' is just 'Not Modified' relative to base?
+                // Or we just reset error config.
+                newParams.forEach((p: any) => {
+                    if (p.error_config) {
+                        p.error_config = {}; // Clear errors
+                    }
+                });
+            }
+
+            // Send update to backend
+            await backendService.updateDevice(activeDevice.id, { parameters: newParams });
+            
+            // Refresh device list to reflect changes
+            const backendDevices = await backendService.fetchDevices();
+            setDevices(backendDevices);
+            
+        } catch (e) {
+            console.error("Failed to apply scenario", e);
+        }
+    }
   };
 
   const handleAddDevice = (newDevice: Device) => {
@@ -236,6 +296,42 @@ const App: React.FC = () => {
       setDevices(newSet);
       setActiveDeviceId(newDevice.id);
     }
+  };
+
+  const handleExportHistory = () => {
+    if (history.length === 0) return;
+    
+    // 1. Collect all possible keys from metrics
+    const allKeys = new Set<string>();
+    history.forEach(step => {
+        if (step.metrics) {
+            Object.keys(step.metrics).forEach(k => allKeys.add(k));
+        }
+    });
+    const keysArray = Array.from(allKeys);
+
+    // 2. Build Header Row
+    const header = ['Timestamp', ...keysArray].join(',');
+
+    // 3. Build Data Rows
+    const rows = history.map(step => {
+        const ts = formatCSVTimestamp(step.timestamp);
+        const metricValues = keysArray.map(key => {
+            return step.metrics && step.metrics[key] !== undefined ? step.metrics[key] : '';
+        });
+        return [ts, ...metricValues].join(',');
+    });
+
+    // 4. Create Blob and Download
+    const csvContent = [header, ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `${activeDevice.name}_history_${new Date().toISOString()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const latestData = history.length > 0 ? history[history.length - 1] : null;
@@ -316,21 +412,6 @@ const App: React.FC = () => {
             >
                 <Layers size={18} />
                 {!isSidebarCollapsed && <span>{dict.categoryConfig}</span>}
-            </button>
-            <button
-                onClick={() => {
-                    setCurrentView('models');
-                    if (simulationMode !== 'Backend') setSimulationMode('Backend');
-                }}
-                className={`flex items-center gap-3 p-2 rounded-md transition-colors text-sm ${
-                    currentView === 'models' 
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' 
-                    : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                } ${isSidebarCollapsed ? 'justify-center' : ''}`}
-                title={dict.modelConfig}
-            >
-                <Box size={18} />
-                {!isSidebarCollapsed && <span>{dict.modelConfig}</span>}
             </button>
             <button
                 onClick={() => {
@@ -515,72 +596,92 @@ const App: React.FC = () => {
                         </div>
 
                         {/* Telemetry Charts */}
-                        <div className="flex-[2] bg-slate-900/50 rounded-lg border border-slate-800 p-4 flex flex-col min-h-0">
-                            <div className="flex justify-between items-center mb-3 shrink-0">
-                                <h3 className="text-sm font-bold text-slate-300 flex items-center gap-2">
-                                    <Activity size={16} className="text-blue-500" />
-                                    {dict.telemetry}
-                                </h3>
-                                <div className="flex bg-slate-800/50 rounded p-0.5">
-                                    <button 
-                                        onClick={() => setMetricsViewMode('list')}
-                                        className={`p-1 rounded ${metricsViewMode === 'list' ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'}`}
-                                        title={dict.switchList}
-                                    >
-                                        <List size={14} />
-                                    </button>
-                                    <button 
-                                        onClick={() => setMetricsViewMode('grid')}
-                                        className={`p-1 rounded ${metricsViewMode === 'grid' ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'}`}
-                                        title={dict.switchGrid}
-                                    >
-                                        <LayoutGrid size={14} />
-                                    </button>
-                                </div>
-                            </div>
-                            <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin">
-                                {metricsViewMode === 'list' ? (
-                                    <div className="h-full">
-                                        <TelemetryChart 
-                                            device={activeDevice}
-                                            data={history}
-                                            dict={dict}
-                                        />
-                                    </div>
-                                ) : (
-                                    <div className="grid grid-cols-2 gap-2 h-full">
-                                        {activeDevice.metrics.map(metric => {
-                                            const currentVal = latestData?.metrics.find(m => m.name === metric.name)?.value ?? 0;
-                                            return (
-                                                <div key={metric.id} className="bg-slate-950/50 rounded p-2 border border-slate-800/50 flex flex-col">
-                                                    <div className="text-xs text-slate-500 mb-1">{metric.name}</div>
-                                                    <div className="text-xl font-mono font-bold text-white mb-2">
-                                                        {currentVal.toFixed(1)} <span className="text-xs text-slate-500 font-sans">{metric.unit}</span>
-                                                    </div>
-                                                    <div className="flex-1 min-h-0">
-                                                        {/* Mini Chart could go here */}
-                                                        <div className="w-full h-full bg-slate-900/50 rounded relative overflow-hidden">
-                                                            <div 
-                                                                className="absolute bottom-0 left-0 w-full bg-blue-500/20 transition-all duration-500"
-                                                                style={{ height: `${Math.min(100, (currentVal / metric.max) * 100)}%` }}
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                            </div>
+                        <div className="flex-[2] min-h-0">
+                             <TelemetryChart 
+                                 device={activeDevice}
+                                 data={history}
+                                 dict={dict}
+                                 onExport={handleExportHistory}
+                             />
                         </div>
                     </div>
 
-                    {/* Right Column: Logs & Events */}
+                    {/* Right Column: Metrics Cards & Logs */}
                     <div className="flex-1 min-w-[300px] flex flex-col gap-3">
-                        <LogViewer logs={logs} dict={dict} />
+                        
+                        {/* Metrics Cards (Restored & Visible) */}
+                        <div className="flex-1 bg-slate-900/50 rounded-lg border border-slate-800 p-3 flex flex-col min-h-0">
+                            <div className="flex justify-between items-center mb-2 shrink-0">
+                                <div className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                                    <LayoutGrid size={14} /> {dict.metrics || 'Metrics'}
+                                </div>
+                                <div className="flex bg-slate-800 rounded p-0.5">
+                                    <button 
+                                        onClick={() => setMetricsViewMode('grid')}
+                                        className={`p-1 rounded ${metricsViewMode === 'grid' ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+                                        title="Grid View"
+                                    >
+                                        <LayoutGrid size={12} />
+                                    </button>
+                                    <button 
+                                        onClick={() => setMetricsViewMode('list')}
+                                        className={`p-1 rounded ${metricsViewMode === 'list' ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+                                        title="List View"
+                                    >
+                                        <List size={12} />
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div className={`overflow-y-auto pr-1 custom-scrollbar ${metricsViewMode === 'grid' ? 'grid grid-cols-2 gap-2' : 'flex flex-col gap-1'}`}>
+                                {activeDevice.metrics.map(metric => {
+                                    // Fix: metrics is a Record<string, number>, keyed by metric.id
+                                    const currentVal = latestData?.metrics ? (latestData.metrics[metric.id] ?? 0) : 0;
+                                    
+                                    if (metricsViewMode === 'list') {
+                                        return (
+                                            <div key={metric.id} className="bg-slate-950/50 rounded px-3 py-2 border border-slate-800/50 flex items-center justify-between">
+                                                <div className="text-xs text-slate-400 truncate w-24" title={metric.name}>{metric.name}</div>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-16 h-1 bg-slate-900 rounded overflow-hidden">
+                                                        <div 
+                                                            className="h-full bg-blue-500/50 transition-all duration-500"
+                                                            style={{ width: `${Math.min(100, (currentVal / metric.max) * 100)}%` }}
+                                                        />
+                                                    </div>
+                                                    <div className="text-sm font-mono font-bold text-white w-16 text-right">
+                                                        {currentVal.toFixed(1)} <span className="text-[10px] text-slate-500 font-sans">{metric.unit}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    }
+
+                                    return (
+                                        <div key={metric.id} className="bg-slate-950/50 rounded p-2 border border-slate-800/50 flex flex-col">
+                                            <div className="text-xs text-slate-500 mb-1 truncate" title={metric.name}>{metric.name}</div>
+                                            <div className="text-lg font-mono font-bold text-white mb-1">
+                                                {currentVal.toFixed(1)} <span className="text-xs text-slate-500 font-sans">{metric.unit}</span>
+                                            </div>
+                                            <div className="w-full h-1 bg-slate-900 rounded overflow-hidden mt-auto">
+                                                <div 
+                                                    className="h-full bg-blue-500/50 transition-all duration-500"
+                                                    style={{ width: `${Math.min(100, (currentVal / metric.max) * 100)}%` }}
+                                                />
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* Logs */}
+                        <div className="flex-1 min-h-0">
+                             <LogViewer logs={logs} dict={dict} />
+                        </div>
                         
                         {/* System Info Card */}
-                        <div className="bg-slate-900/50 rounded-lg border border-slate-800 p-4 h-40 shrink-0">
+                        <div className="bg-slate-900/50 rounded-lg border border-slate-800 p-4 h-auto shrink-0">
                             <h3 className="text-xs font-bold text-slate-500 uppercase mb-3 tracking-wider">{dict.systemStatusTitle}</h3>
                             <div className="space-y-2 text-sm">
                                 <div className="flex justify-between">
@@ -623,12 +724,6 @@ const App: React.FC = () => {
             {currentView === 'categories' && (
                 <div className="flex-1">
                     <CategoryManager onClose={() => setCurrentView('dashboard')} dict={dict} />
-                </div>
-            )}
-
-            {currentView === 'models' && (
-                <div className="flex-1">
-                    <SimulationModelManager onClose={() => setCurrentView('dashboard')} dict={dict} />
                 </div>
             )}
 

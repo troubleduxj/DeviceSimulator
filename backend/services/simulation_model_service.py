@@ -22,12 +22,26 @@ class SimulationModelService:
                 parameters = json.loads(parameters)
             except json.JSONDecodeError:
                 parameters = []
+        
+        # Handle JSON fields that might be strings or dicts
+        physics_config = db_model.physics_config or {}
+        if isinstance(physics_config, str):
+            try: physics_config = json.loads(physics_config)
+            except: physics_config = {}
+
+        logic_rules = db_model.logic_rules or []
+        if isinstance(logic_rules, str):
+            try: logic_rules = json.loads(logic_rules)
+            except: logic_rules = []
                 
         return SimulationModel(
             id=db_model.id,
             name=db_model.name,
+            type=db_model.type or "custom",
             description=db_model.description,
             parameters=parameters,
+            physics_config=physics_config,
+            logic_rules=logic_rules,
             created_at=db_model.created_at,
             updated_at=db_model.updated_at
         )
@@ -64,15 +78,14 @@ class SimulationModelService:
             if existing:
                 raise ValueError(f"数据模型名称 {model.name} 已存在")
             
-            # 序列化参数 (虽然SQLAlchemy JSON类型会自动处理，但为了兼容性保持与DeviceService一致)
-            # 注意：如果底层驱动支持JSON，赋值dict即可；如果存为Text，则需dumps
-            # 这里直接赋值，假设SQLAlchemy配置正确
-            
             db_obj = SimulationModelDB(
                 id=model.id,
                 name=model.name,
+                type=model.type,
                 description=model.description,
-                parameters=[p.dict() for p in model.parameters]
+                parameters=[p.dict() for p in model.parameters],
+                physics_config=model.physics_config,
+                logic_rules=model.logic_rules
             )
             
             db.add(db_obj)
@@ -95,8 +108,11 @@ class SimulationModelService:
                 return None
             
             db_obj.name = model_update.name
+            db_obj.type = model_update.type
             db_obj.description = model_update.description
             db_obj.parameters = [p.dict() for p in model_update.parameters]
+            db_obj.physics_config = model_update.physics_config
+            db_obj.logic_rules = model_update.logic_rules
             
             db.commit()
             db.refresh(db_obj)

@@ -171,7 +171,7 @@ const CutterModel: React.FC<{ data: Record<string, number> | undefined }> = ({ d
   
   // Convert mm to world units. Map 0-1000 to -2 to 2 (width 4)
   const worldX = ((xPos / 1000) * 4) - 2;
-  const isActive = current > 5;
+  const isActive = current > 1; // Lowered threshold from 5 to 1 for visibility
 
   useFrame((state) => {
     if (gantryRef.current) {
@@ -429,15 +429,27 @@ export const DigitalTwin: React.FC<DigitalTwinProps> = ({ device, latestData, di
   useCursor(hovered);
 
   const renderModel = () => {
+    // Priority 1: Custom/Legacy Mappings
     switch (device.type) {
-        case 'Generator': return <GeneratorModel data={latestData?.metrics} />;
-        case 'generator': return <GeneratorModel data={latestData?.metrics} />;
-        case 'Cutter': return <CutterModel data={latestData?.metrics} />;
-        case 'cutter': return <CutterModel data={latestData?.metrics} />;
-        case 'single_head_cutter': return <CutterModel data={latestData?.metrics} />;
-        case 'welder': return <GeneratorModel data={latestData?.metrics} />; // Use Generator model for Welder temporarily
-        default: return <GenericDevice />;
+        case 'plasma_cutter_2025': return <CutterModel data={{
+            ...latestData?.metrics,
+            gasPressure: latestData?.metrics?.gas_pressure,
+            current: latestData?.metrics?.arc_voltage ? latestData.metrics.arc_voltage / 10 : 0,
+            x_pos: latestData?.metrics?.cutting_speed ? (Date.now() / 10) % 1000 : 500 
+        }} />;
     }
+
+    // Priority 2: Explicit Visual Model
+    const modelType = device.visual_model || device.type;
+    
+    // Normalize
+    const normalizedType = modelType.toLowerCase();
+
+    if (normalizedType.includes('generator')) return <GeneratorModel data={latestData?.metrics} />;
+    if (normalizedType.includes('cutter')) return <CutterModel data={latestData?.metrics} />;
+    if (normalizedType.includes('welder')) return <GeneratorModel data={latestData?.metrics} />;
+    
+    return <GenericDevice />;
   };
 
   return (

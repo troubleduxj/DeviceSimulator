@@ -55,12 +55,25 @@ def get_all_categories(db: Session = Depends(get_db)):
         if isinstance(parameters, str):
             parameters = json.loads(parameters)
         
+        physics_config = cat_db.physics_config or {}
+        if isinstance(physics_config, str):
+            try: physics_config = json.loads(physics_config)
+            except: physics_config = {}
+
+        logic_rules = cat_db.logic_rules or []
+        if isinstance(logic_rules, str):
+            try: logic_rules = json.loads(logic_rules)
+            except: logic_rules = []
+        
         categories.append(Category(
             id=cat_db.id,
             name=cat_db.name,
             code=cat_db.code if hasattr(cat_db, 'code') and cat_db.code else cat_db.name, # Fallback for existing data
             description=cat_db.description,
+            visual_model=cat_db.visual_model or "Generic", # Added field
             parameters=parameters,
+            physics_config=physics_config,
+            logic_rules=logic_rules,
             created_at=cat_db.created_at,
             updated_at=cat_db.updated_at
         ))
@@ -76,16 +89,15 @@ def create_category(category: Category, db: Session = Depends(get_db)):
             detail=f"分类编码 {category.code} 已存在"
         )
     
-    # parameters validation?
-    
-    # parameters_json = json.dumps(category.parameters) if not isinstance(category.parameters, str) else category.parameters
-
     category_db = CategoryDB(
         id=category.id,
         name=category.name,
         code=category.code,
         description=category.description,
-        parameters=category.parameters, # SQLAlchemy handles list -> JSON conversion
+        visual_model=category.visual_model, # Added field
+        parameters=[p.dict() for p in category.parameters], # SQLAlchemy handles list -> JSON conversion
+        physics_config=category.physics_config,
+        logic_rules=category.logic_rules,
         created_at=category.created_at,
         updated_at=category.updated_at
     )
@@ -102,7 +114,18 @@ def create_category(category: Category, db: Session = Depends(get_db)):
         except Exception as e:
             print(f"Warning: Failed to create TDengine super table for {category.code}: {e}")
 
-    return category
+    return Category(
+        id=category_db.id,
+        name=category_db.name,
+        code=category_db.code,
+        description=category_db.description,
+        visual_model=category_db.visual_model, # Added field
+        parameters=category.parameters, # Use input parameters which are already Pydantic models
+        physics_config=category.physics_config,
+        logic_rules=category.logic_rules,
+        created_at=category_db.created_at,
+        updated_at=category_db.updated_at
+    )
 
 @router.put("/{category_id}", response_model=Category)
 def update_category(category_id: str, category: Category, db: Session = Depends(get_db)):
@@ -128,12 +151,13 @@ def update_category(category_id: str, category: Category, db: Session = Depends(
         # Device.type stores the category code
         db.query(DeviceDB).filter(DeviceDB.type == old_code).update({DeviceDB.type: category.code})
 
-    parameters_json = json.dumps(category.parameters) if not isinstance(category.parameters, str) else category.parameters
-
     db_category.name = category.name
     db_category.code = category.code
     db_category.description = category.description
-    db_category.parameters = parameters_json
+    db_category.visual_model = category.visual_model # Added field
+    db_category.parameters = [p.dict() for p in category.parameters]
+    db_category.physics_config = category.physics_config
+    db_category.logic_rules = category.logic_rules
     db_category.updated_at = category.updated_at
     
     db.commit()
@@ -143,13 +167,26 @@ def update_category(category_id: str, category: Category, db: Session = Depends(
     parameters = db_category.parameters
     if isinstance(parameters, str):
         parameters = json.loads(parameters)
+    
+    physics_config = db_category.physics_config or {}
+    if isinstance(physics_config, str):
+        try: physics_config = json.loads(physics_config)
+        except: physics_config = {}
+
+    logic_rules = db_category.logic_rules or []
+    if isinstance(logic_rules, str):
+        try: logic_rules = json.loads(logic_rules)
+        except: logic_rules = []
 
     return Category(
         id=db_category.id,
         name=db_category.name,
         code=db_category.code,
         description=db_category.description,
+        visual_model=db_category.visual_model, # Added field
         parameters=parameters,
+        physics_config=physics_config,
+        logic_rules=logic_rules,
         created_at=db_category.created_at,
         updated_at=db_category.updated_at
     )

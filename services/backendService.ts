@@ -27,6 +27,7 @@ export interface BackendParameter {
   default_value?: any;
   generation_mode: GenerationMode;
   generation_params?: Record<string, any>;
+  error_config?: Record<string, any>; // Added error_config
 }
 
 export interface BackendDevice {
@@ -35,9 +36,12 @@ export interface BackendDevice {
   type: string;
   model?: string;
   description?: string;
+  visual_model?: string;
   parameters: BackendParameter[];
   sampling_rate: number;
   status: 'running' | 'stopped' | 'error';
+  physics_config?: Record<string, any>;
+  logic_rules?: Array<{ condition: string; action: string }>;
   created_at?: string;
   updated_at?: string;
 }
@@ -47,7 +51,10 @@ export interface Category {
   name: string;
   code: string;
   description?: string;
-  parameters: any[];
+  visual_model?: string;
+  parameters: BackendParameter[];
+  physics_config?: Record<string, any>;
+  logic_rules?: Array<{ condition: string; action: string }>;
   created_at?: string;
   updated_at?: string;
 }
@@ -57,7 +64,9 @@ export interface SimulationModel {
   name: string;
   type: string;
   description?: string;
-  config: Record<string, any>;
+  parameters: BackendParameter[];
+  physics_config?: Record<string, any>;
+  logic_rules?: Array<{ condition: string; action: string }>;
   created_at?: string;
   updated_at?: string;
 }
@@ -80,7 +89,39 @@ export interface SystemStatus {
   debug: boolean;
 }
 
+export interface SystemSettings {
+  mqtt_enabled: boolean;
+  mqtt_host?: string;
+  mqtt_port?: number;
+  mqtt_user?: string;
+  mqtt_password?: string;
+  mqtt_topic_template?: string;
+  modbus_enabled: boolean;
+  modbus_port?: number;
+  opcua_enabled: boolean;
+  opcua_endpoint?: string;
+}
+
 export const backendService = {
+  // ... existing methods ...
+
+  // --- System Settings ---
+  async fetchSystemSettings(): Promise<SystemSettings> {
+    const response = await fetch(`${API_BASE}/system/settings`);
+    if (!response.ok) throw new Error('Failed to fetch system settings');
+    return await response.json();
+  },
+
+  async updateSystemSettings(settings: SystemSettings): Promise<any> {
+    const response = await fetch(`${API_BASE}/system/settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings)
+    });
+    if (!response.ok) throw new Error('Failed to update system settings');
+    return await response.json();
+  },
+
   // Fetch all devices (Raw Backend Format)
   async fetchBackendDevices(): Promise<BackendDevice[]> {
       const response = await fetch(`${API_BASE}/device/`);
@@ -200,22 +241,37 @@ export const backendService = {
     try {
       const backendDevices = await this.fetchBackendDevices();
       
-      return backendDevices.map(bd => ({
-        id: bd.id,
-        name: bd.name,
-        type: mapBackendTypeToFrontend(bd.type),
-        description: bd.description || '',
-        status: bd.status === 'running' ? 'running' : 'stopped',
-        currentScenario: 'Default', // Backend doesn't support scenarios yet
-        scenarios: ['Default'],
-        metrics: bd.parameters.map(p => ({
-          id: p.id || p.name, // Use ID if available, else name
-          name: p.name,
-          unit: p.unit || '',
-          min: p.min_value ?? 0,
-          max: p.max_value ?? 100
-        }))
-      }));
+      return backendDevices.map(bd => {
+        const type = mapBackendTypeToFrontend(bd.type);
+        let scenarios = ['Normal Operation'];
+        
+        // Inject scenarios based on type
+        if (type === 'Generator') {
+            scenarios = ['Normal Operation', 'High Load', 'Unstable Output'];
+        } else if (type === 'Cutter') {
+            scenarios = ['Precision Cutting', 'Idle', 'Error State'];
+        }
+
+        return {
+            id: bd.id,
+            name: bd.name,
+            type: type,
+            description: bd.description || '',
+            status: bd.status === 'running' ? 'running' : 'stopped',
+            currentScenario: scenarios[0], 
+            scenarios: scenarios,
+            parameters: bd.parameters, // Keep raw parameters for updates
+            physics_config: bd.physics_config,
+            logic_rules: bd.logic_rules,
+            metrics: bd.parameters.map(p => ({
+            id: p.id || p.name, 
+            name: p.name,
+            unit: p.unit || '',
+            min: p.min_value ?? 0,
+            max: p.max_value ?? 100
+            }))
+        } as any; // Use any to bypass strict type check for extra fields if needed
+      });
     } catch (error) {
       console.error('Backend Fetch Error:', error);
       throw error;

@@ -1,8 +1,10 @@
 from typing import List, Optional
 from models.device import Device, DeviceDB
+from models.category import CategoryDB
 from services.database_service import SessionLocal, engine
 from services.tdengine_service import tdengine_service
 from services.config_service import ConfigService
+from services.simulation_engine import SimulationStateManager
 from sqlalchemy.orm import Session
 import json
 
@@ -22,6 +24,10 @@ class DeviceService:
         db = DeviceService._get_db()
         try:
             device_dbs = db.query(DeviceDB).all()
+            # Pre-fetch all categories to map visual_model
+            categories = db.query(CategoryDB).all()
+            cat_map = {cat.code: cat.visual_model for cat in categories}
+            
             devices = []
             for device_db in device_dbs:
                 # 将JSON字符串转换为参数列表
@@ -35,9 +41,12 @@ class DeviceService:
                     type=device_db.type,
                     model=device_db.model,
                     description=device_db.description,
+                    visual_model=cat_map.get(device_db.type, "Generic"), # Map visual_model
                     parameters=parameters,
                     sampling_rate=device_db.sampling_rate,
                     status=device_db.status,
+                    physics_config=device_db.physics_config if device_db.physics_config else {},
+                    logic_rules=device_db.logic_rules if device_db.logic_rules else [],
                     created_at=device_db.created_at,
                     updated_at=device_db.updated_at
                 )
@@ -55,6 +64,10 @@ class DeviceService:
             if not device_db:
                 return None
             
+            # Get category for visual_model
+            category = db.query(CategoryDB).filter(CategoryDB.code == device_db.type).first()
+            visual_model = category.visual_model if category else "Generic"
+
             # 将JSON字符串转换为参数列表
             parameters = device_db.parameters
             if isinstance(parameters, str):
@@ -66,9 +79,12 @@ class DeviceService:
                 type=device_db.type,
                 model=device_db.model,
                 description=device_db.description,
+                visual_model=visual_model, # Map visual_model
                 parameters=parameters,
                 sampling_rate=device_db.sampling_rate,
                 status=device_db.status,
+                physics_config=device_db.physics_config if device_db.physics_config else {},
+                logic_rules=device_db.logic_rules if device_db.logic_rules else [],
                 created_at=device_db.created_at,
                 updated_at=device_db.updated_at
             )
@@ -98,6 +114,8 @@ class DeviceService:
                 parameters=parameters_json,
                 sampling_rate=device.sampling_rate,
                 status=device.status,
+                physics_config=device.physics_config,
+                logic_rules=device.logic_rules,
                 created_at=device.created_at,
                 updated_at=device.updated_at
             )
@@ -145,6 +163,8 @@ class DeviceService:
                     # 不抛出异常，以免影响设备创建的主流程
                     print(f"TDengine表创建失败，但设备数据已保存到SQLite")
             
+            # Re-fetch to get visual_model? Or just return input device (which might lack it)
+            # Better: manually set it if needed, but frontend usually refreshes list.
             return device
         finally:
             db.close()
@@ -175,6 +195,8 @@ class DeviceService:
             existing_device.parameters = parameters_json
             existing_device.sampling_rate = device.sampling_rate
             existing_device.status = device.status
+            existing_device.physics_config = device.physics_config
+            existing_device.logic_rules = device.logic_rules
             existing_device.updated_at = device.updated_at
             
             db.commit()
@@ -227,6 +249,10 @@ class DeviceService:
                     tdengine_service.delete_device_table(device_id)
                 except Exception as e:
                     print(f"TDengine表删除失败: {e}，但设备数据已从SQLite删除")
+            
+            # 清除仿真状态
+            SimulationStateManager.clear_state(device_id)
+            
             return True
         finally:
             db.close()
@@ -260,6 +286,8 @@ class DeviceService:
                 parameters=parameters,
                 sampling_rate=existing_device.sampling_rate,
                 status=existing_device.status,
+                physics_config=existing_device.physics_config if existing_device.physics_config else {},
+                logic_rules=existing_device.logic_rules if existing_device.logic_rules else [],
                 created_at=existing_device.created_at,
                 updated_at=existing_device.updated_at
             )

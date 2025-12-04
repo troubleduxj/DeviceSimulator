@@ -86,7 +86,9 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ onClose, dict 
       name: '',
       code: '',
       description: '',
-      parameters: []
+      parameters: [],
+      physics_config: {},
+      logic_rules: []
     });
     setIsFormOpen(true);
   };
@@ -198,7 +200,7 @@ interface CategoryFormProps {
 
 const CategoryForm: React.FC<CategoryFormProps> = ({ category: initialCategory, onSave, onCancel, dict }) => {
   const [category, setCategory] = useState(initialCategory);
-  const [activeTab, setActiveTab] = useState<'basic' | 'params'>('basic');
+  const [activeTab, setActiveTab] = useState<'basic' | 'params' | 'advanced'>('basic');
 
   // Ensure parameters is an array
   useEffect(() => {
@@ -218,6 +220,44 @@ const CategoryForm: React.FC<CategoryFormProps> = ({ category: initialCategory, 
     const newParams = [...(category.parameters as BackendParameter[] || [])];
     newParams[index] = { ...newParams[index], [field]: value };
     setCategory({ ...category, parameters: newParams });
+  };
+
+  const handleParamConfigChange = (index: number, configType: 'error_config', key: string, value: any) => {
+    const newParams = [...(category.parameters as BackendParameter[] || [])];
+    const currentConfig = newParams[index][configType] || {};
+    
+    if (value === '' || value === null) {
+        delete currentConfig[key];
+    } else {
+        currentConfig[key] = value;
+    }
+    
+    newParams[index] = { ...newParams[index], [configType]: { ...currentConfig } };
+    setCategory({ ...category, parameters: newParams });
+  };
+
+  const handlePhysicsChange = (key: string, value: number) => {
+      setCategory({ 
+          ...category, 
+          physics_config: { ...(category.physics_config || {}), [key]: value } 
+      });
+  };
+
+  const handleAddRule = () => {
+      const newRules = [...(category.logic_rules || []), { condition: '', action: '' }];
+      setCategory({ ...category, logic_rules: newRules });
+  };
+
+  const handleRuleChange = (index: number, field: 'condition' | 'action', value: string) => {
+      const newRules = [...(category.logic_rules || [])];
+      newRules[index] = { ...newRules[index], [field]: value };
+      setCategory({ ...category, logic_rules: newRules });
+  };
+
+  const handleRemoveRule = (index: number) => {
+      const newRules = [...(category.logic_rules || [])];
+      newRules.splice(index, 1);
+      setCategory({ ...category, logic_rules: newRules });
   };
 
   const addParam = () => {
@@ -270,10 +310,16 @@ const CategoryForm: React.FC<CategoryFormProps> = ({ category: initialCategory, 
             >
                 {dict.parameters} ({category.parameters?.length || 0})
             </button>
+            <button 
+                className={`px-6 py-3 text-sm font-bold transition-colors ${activeTab === 'advanced' ? 'text-blue-400 border-b-2 border-blue-400 bg-slate-800/50' : 'text-slate-400 hover:text-white'}`}
+                onClick={() => setActiveTab('advanced')}
+            >
+                {dict.advancedAndErrors || 'Advanced'}
+            </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6">
-            {activeTab === 'basic' ? (
+            {activeTab === 'basic' && (
                 <div className="space-y-4 max-w-lg mx-auto">
                    <div>
                      <label className="block text-xs uppercase text-slate-500 font-bold mb-1">{dict.categoryName}</label>
@@ -295,6 +341,18 @@ const CategoryForm: React.FC<CategoryFormProps> = ({ category: initialCategory, 
                      />
                    </div>
                    <div>
+                     <label className="block text-xs uppercase text-slate-500 font-bold mb-1">{dict.visualModel || 'Visual Model'}</label>
+                     <select 
+                        value={category.visual_model || 'Generic'}
+                        onChange={e => setCategory({...category, visual_model: e.target.value})}
+                        className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white focus:border-blue-500 outline-none"
+                     >
+                        <option value="Generic">Generic (Server Rack)</option>
+                        <option value="Generator">Generator</option>
+                        <option value="Cutter">Cutter (CNC)</option>
+                     </select>
+                   </div>
+                   <div>
                      <label className="block text-xs uppercase text-slate-500 font-bold mb-1">{dict.description}</label>
                      <textarea 
                         value={category.description}
@@ -303,7 +361,9 @@ const CategoryForm: React.FC<CategoryFormProps> = ({ category: initialCategory, 
                      />
                    </div>
                 </div>
-            ) : (
+            )}
+
+            {activeTab === 'params' && (
                 <div>
                    <div className="flex justify-between items-center mb-4">
                      <div className="text-sm text-slate-400">{dict.defineMetrics || 'Define Parameters'}</div>
@@ -315,6 +375,16 @@ const CategoryForm: React.FC<CategoryFormProps> = ({ category: initialCategory, 
                    <div className="space-y-3">
                      {(category.parameters as BackendParameter[])?.map((param, idx) => (
                         <div key={idx} className="bg-slate-800/50 p-3 rounded border border-slate-700 flex flex-wrap gap-3 items-end">
+                           <div className="w-[120px]">
+                              <label className="block text-[10px] text-slate-500 mb-1">{dict.paramId || 'ID (Column)'}</label>
+                              <input 
+                                type="text" 
+                                value={param.id || ''} 
+                                onChange={e => handleParamChange(idx, 'id', e.target.value)}
+                                className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white font-mono"
+                                placeholder="e.g. voltage"
+                              />
+                           </div>
                            <div className="flex-1 min-w-[150px]">
                               <label className="block text-[10px] text-slate-500 mb-1">{dict.paramName || 'Name'}</label>
                               <input 
@@ -381,6 +451,130 @@ const CategoryForm: React.FC<CategoryFormProps> = ({ category: initialCategory, 
                      )}
                    </div>
                 </div>
+            )}
+
+            {activeTab === 'advanced' && (
+            <div>
+                <div className="mb-4 bg-slate-800/50 p-4 rounded border border-slate-700">
+                    <h4 className="text-white font-bold mb-2">{dict.globalPhysicsConfig || 'Physics Config'}</h4>
+                    <p className="text-xs text-slate-400 mb-4">Configure physical properties for kinematics simulation.</p>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-[10px] text-slate-500 mb-1">{dict.massKg || 'Mass (kg)'}</label>
+                            <input 
+                                type="number" 
+                                value={category.physics_config?.mass || ''}
+                                onChange={e => handlePhysicsChange('mass', parseFloat(e.target.value))}
+                                className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white" 
+                            />
+                        </div>
+                        <div>
+                             <label className="block text-[10px] text-slate-500 mb-1">{dict.maxVelocity || 'Max Velocity'}</label>
+                            <input 
+                                type="number" 
+                                value={category.physics_config?.max_velocity || ''}
+                                onChange={e => handlePhysicsChange('max_velocity', parseFloat(e.target.value))}
+                                className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white" 
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="mb-4 bg-slate-800/50 p-4 rounded border border-slate-700">
+                    <h4 className="text-white font-bold mb-4">{dict.logicRules || 'Logic Rules'}</h4>
+                    <div className="space-y-2 mb-4">
+                        {category.logic_rules?.map((rule, idx) => (
+                            <div key={idx} className="flex gap-2 items-center">
+                                <input 
+                                    type="text" 
+                                    value={rule.condition}
+                                    onChange={e => handleRuleChange(idx, 'condition', e.target.value)}
+                                    className="flex-1 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white"
+                                    placeholder={dict.ruleHint || 'Condition'}
+                                />
+                                <span className="text-slate-500">→</span>
+                                <input 
+                                    type="text" 
+                                    value={rule.action}
+                                    onChange={e => handleRuleChange(idx, 'action', e.target.value)}
+                                    className="flex-1 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white"
+                                    placeholder={dict.actionHint || 'Action'}
+                                />
+                                <button onClick={() => handleRemoveRule(idx)} className="p-1.5 text-slate-500 hover:text-red-400">
+                                    <Trash2 size={16} />
+                                </button>
+                            </div>
+                        ))}
+                        {(!category.logic_rules || category.logic_rules.length === 0) && (
+                            <div className="text-slate-500 italic text-sm mb-2">No rules defined.</div>
+                        )}
+                        <button onClick={handleAddRule} className="flex items-center gap-1 text-xs bg-slate-800 hover:bg-slate-700 text-blue-400 px-3 py-1.5 rounded border border-slate-700">
+                            <Plus size={14}/> {dict.addRule || 'Add Rule'}
+                        </button>
+                    </div>
+                </div>
+
+                <h4 className="text-white font-bold mb-4">{dict.paramErrorInjection || 'Error Injection'}</h4>
+                <div className="space-y-4">
+                    {(category.parameters as BackendParameter[])?.filter(p => p.type === ParameterType.NUMBER).map((param, idx) => (
+                        <div key={idx} className="bg-slate-800/30 p-4 rounded border border-slate-700">
+                            <div className="font-bold text-blue-400 mb-2">{param.name}</div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label className="block text-[10px] text-slate-500 mb-1">{dict.driftRate || 'Drift Rate'}</label>
+                                    <input 
+                                        type="number" 
+                                        step="0.1"
+                                        value={param.error_config?.drift_rate || ''}
+                                        onChange={e => handleParamConfigChange(idx, 'error_config', 'drift_rate', parseFloat(e.target.value))}
+                                        className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white" 
+                                        placeholder="0.0"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] text-slate-500 mb-1">{dict.anomalyProb || 'Anomaly Prob'}</label>
+                                    <input 
+                                        type="number" 
+                                        step="0.01"
+                                        min="0" max="1"
+                                        value={param.error_config?.anomaly_probability || ''}
+                                        onChange={e => handleParamConfigChange(idx, 'error_config', 'anomaly_probability', parseFloat(e.target.value))}
+                                        className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white" 
+                                        placeholder="0.05"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] text-slate-500 mb-1">{dict.dropProb || 'Drop Prob'}</label>
+                                    <input 
+                                        type="number" 
+                                        step="0.01"
+                                        min="0" max="1"
+                                        value={param.error_config?.mcar_probability || ''}
+                                        onChange={e => handleParamConfigChange(idx, 'error_config', 'mcar_probability', parseFloat(e.target.value))}
+                                        className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white" 
+                                        placeholder="0.01"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] text-slate-500 mb-1">{dict.noiseStdDev || 'Noise (StdDev)'}</label>
+                                    <input 
+                                        type="number" 
+                                        step="0.1"
+                                        min="0"
+                                        value={param.error_config?.noise_std_dev || ''}
+                                        onChange={e => handleParamConfigChange(idx, 'error_config', 'noise_std_dev', parseFloat(e.target.value))}
+                                        className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white" 
+                                        placeholder="0.5"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                    {(category.parameters as BackendParameter[])?.filter(p => p.type === ParameterType.NUMBER).length === 0 && (
+                        <div className="text-slate-500 italic text-sm">{dict.noNumericParams || 'No numeric parameters'}</div>
+                    )}
+                </div>
+            </div>
             )}
         </div>
 

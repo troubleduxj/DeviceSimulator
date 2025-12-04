@@ -11,10 +11,15 @@ export interface Device {
   name: string;
   type: string;
   description: string;
+  visual_model?: string;
   metrics: MetricConfig[];
   status: 'stopped' | 'running';
   currentScenario: string;
   scenarios: string[];
+  // Backend/Advanced fields
+  parameters?: any[]; 
+  physics_config?: Record<string, any>;
+  logic_rules?: any[];
 }
 
 export interface SimulationStep {

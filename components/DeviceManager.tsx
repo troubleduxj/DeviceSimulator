@@ -70,7 +70,9 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({ onClose, dict }) =
       description: '',
       sampling_rate: 1000,
       status: 'stopped',
-      parameters: []
+      parameters: [],
+      physics_config: {},
+      logic_rules: []
     });
     setIsFormOpen(true);
   };
@@ -167,17 +169,26 @@ interface DeviceFormProps {
 
 const DeviceForm: React.FC<DeviceFormProps> = ({ device: initialDevice, categories, onSave, onCancel, dict }) => {
   const [device, setDevice] = useState(initialDevice);
-  const [activeTab, setActiveTab] = useState<'basic' | 'params'>('basic');
+  const [activeTab, setActiveTab] = useState<'basic' | 'params' | 'advanced'>('basic');
 
   const handleTypeChange = (newType: string) => {
       setDevice({ ...device, type: newType });
       // Optional: Ask to load parameters from category
       if (confirm(dict.loadParamsConfirm)) {
           const category = categories.find(c => c.code === newType);
-          if (category && category.parameters) {
+          if (category) {
               // Deep copy parameters to avoid reference issues
-              const newParams = JSON.parse(JSON.stringify(category.parameters));
-              setDevice(prev => ({ ...prev, type: newType, parameters: newParams }));
+              const newParams = JSON.parse(JSON.stringify(category.parameters || []));
+              const newPhysics = JSON.parse(JSON.stringify(category.physics_config || {}));
+              const newRules = JSON.parse(JSON.stringify(category.logic_rules || []));
+              
+              setDevice(prev => ({ 
+                  ...prev, 
+                  type: newType, 
+                  parameters: newParams,
+                  physics_config: newPhysics,
+                  logic_rules: newRules
+              }));
           }
       }
   };
@@ -186,6 +197,47 @@ const DeviceForm: React.FC<DeviceFormProps> = ({ device: initialDevice, categori
     const newParams = [...(device.parameters || [])];
     newParams[index] = { ...newParams[index], [field]: value };
     setDevice({ ...device, parameters: newParams });
+  };
+
+  // Handle advanced configuration updates (errorConfig)
+  const handleParamConfigChange = (index: number, configType: 'error_config', key: string, value: any) => {
+    const newParams = [...(device.parameters || [])];
+    const currentConfig = newParams[index][configType] || {};
+    
+    if (value === '' || value === null) {
+        delete currentConfig[key];
+    } else {
+        currentConfig[key] = value;
+    }
+    
+    newParams[index] = { ...newParams[index], [configType]: { ...currentConfig } };
+    setDevice({ ...device, parameters: newParams });
+  };
+
+  // Handle Physics Config
+  const handlePhysicsChange = (key: string, value: number) => {
+      setDevice({ 
+          ...device, 
+          physics_config: { ...(device.physics_config || {}), [key]: value } 
+      });
+  };
+
+  // Handle Logic Rules
+  const handleAddRule = () => {
+      const newRules = [...(device.logic_rules || []), { condition: '', action: '' }];
+      setDevice({ ...device, logic_rules: newRules });
+  };
+
+  const handleRuleChange = (index: number, field: 'condition' | 'action', value: string) => {
+      const newRules = [...(device.logic_rules || [])];
+      newRules[index] = { ...newRules[index], [field]: value };
+      setDevice({ ...device, logic_rules: newRules });
+  };
+
+  const handleRemoveRule = (index: number) => {
+      const newRules = [...(device.logic_rules || [])];
+      newRules.splice(index, 1);
+      setDevice({ ...device, logic_rules: newRules });
   };
 
   const addParam = () => {
@@ -202,7 +254,8 @@ const DeviceForm: React.FC<DeviceFormProps> = ({ device: initialDevice, categori
           min_value: 0,
           max_value: 100,
           generation_mode: GenerationMode.RANDOM,
-          generation_params: {}
+          generation_params: {},
+          error_config: {}
         }
       ]
     });
@@ -239,11 +292,17 @@ const DeviceForm: React.FC<DeviceFormProps> = ({ device: initialDevice, categori
             >
                 {dict.parameters} ({device.parameters?.length || 0})
             </button>
+            <button 
+                className={`px-6 py-3 text-sm font-bold transition-colors ${activeTab === 'advanced' ? 'text-blue-400 border-b-2 border-blue-400 bg-slate-800/50' : 'text-slate-400 hover:text-white'}`}
+                onClick={() => setActiveTab('advanced')}
+            >
+                {dict.advancedAndErrors}
+            </button>
         </div>
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
-          {activeTab === 'basic' ? (
+          {activeTab === 'basic' && (
             <div className="space-y-4 max-w-lg mx-auto">
                <div>
                  <label className="block text-xs uppercase text-slate-500 font-bold mb-1">{dict.deviceName}</label>
@@ -292,18 +351,29 @@ const DeviceForm: React.FC<DeviceFormProps> = ({ device: initialDevice, categori
                  />
                </div>
             </div>
-          ) : (
-            <div>
-               <div className="flex justify-between items-center mb-4">
-                 <div className="text-sm text-slate-400">{dict.defineMetrics}</div>
-                 <button onClick={addParam} className="flex items-center gap-1 text-xs bg-slate-800 hover:bg-slate-700 text-blue-400 px-3 py-1.5 rounded border border-slate-700">
-                    <Plus size={14}/> {dict.addParameter}
-                 </button>
-               </div>
-               
-               <div className="space-y-3">
+          )}
+          
+          {activeTab === 'params' && (
+            <div className="space-y-3">
+                 <div className="flex justify-between items-center mb-4">
+                     <div className="text-sm text-slate-400">{dict.defineMetrics}</div>
+                     <button onClick={addParam} className="flex items-center gap-1 text-xs bg-slate-800 hover:bg-slate-700 text-blue-400 px-3 py-1.5 rounded border border-slate-700">
+                        <Plus size={14}/> {dict.addParameter}
+                     </button>
+                 </div>
+
                  {device.parameters?.map((param, idx) => (
                     <div key={idx} className="bg-slate-800/50 p-3 rounded border border-slate-700 flex flex-wrap gap-3 items-end">
+                       <div className="w-[120px]">
+                          <label className="block text-[10px] text-slate-500 mb-1">{dict.paramId || 'ID (Column)'}</label>
+                          <input 
+                            type="text" 
+                            value={param.id || ''} 
+                            onChange={e => handleParamChange(idx, 'id', e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white font-mono"
+                            placeholder="e.g. voltage"
+                          />
+                       </div>
                        <div className="flex-1 min-w-[150px]">
                           <label className="block text-[10px] text-slate-500 mb-1">{dict.paramName}</label>
                           <input 
@@ -368,7 +438,130 @@ const DeviceForm: React.FC<DeviceFormProps> = ({ device: initialDevice, categori
                  {device.parameters?.length === 0 && (
                     <div className="text-center py-8 text-slate-600 italic">{dict.noParams}</div>
                  )}
-               </div>
+            </div>
+          )}
+
+          {activeTab === 'advanced' && (
+            <div>
+                <div className="mb-4 bg-slate-800/50 p-4 rounded border border-slate-700">
+                    <h4 className="text-white font-bold mb-2">{dict.globalPhysicsConfig}</h4>
+                    <p className="text-xs text-slate-400 mb-4">Configure physical properties for kinematics simulation.</p>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-[10px] text-slate-500 mb-1">{dict.massKg}</label>
+                            <input 
+                                type="number" 
+                                value={device.physics_config?.mass || ''}
+                                onChange={e => handlePhysicsChange('mass', parseFloat(e.target.value))}
+                                className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white" 
+                            />
+                        </div>
+                        <div>
+                             <label className="block text-[10px] text-slate-500 mb-1">{dict.maxVelocity}</label>
+                            <input 
+                                type="number" 
+                                value={device.physics_config?.max_velocity || ''}
+                                onChange={e => handlePhysicsChange('max_velocity', parseFloat(e.target.value))}
+                                className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white" 
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="mb-4 bg-slate-800/50 p-4 rounded border border-slate-700">
+                    <h4 className="text-white font-bold mb-4">{dict.logicRules}</h4>
+                    <div className="space-y-2 mb-4">
+                        {device.logic_rules?.map((rule, idx) => (
+                            <div key={idx} className="flex gap-2 items-center">
+                                <input 
+                                    type="text" 
+                                    value={rule.condition}
+                                    onChange={e => handleRuleChange(idx, 'condition', e.target.value)}
+                                    className="flex-1 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white"
+                                    placeholder={dict.ruleHint}
+                                />
+                                <span className="text-slate-500">→</span>
+                                <input 
+                                    type="text" 
+                                    value={rule.action}
+                                    onChange={e => handleRuleChange(idx, 'action', e.target.value)}
+                                    className="flex-1 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white"
+                                    placeholder={dict.actionHint}
+                                />
+                                <button onClick={() => handleRemoveRule(idx)} className="p-1.5 text-slate-500 hover:text-red-400">
+                                    <Trash2 size={16} />
+                                </button>
+                            </div>
+                        ))}
+                        {(!device.logic_rules || device.logic_rules.length === 0) && (
+                            <div className="text-slate-500 italic text-sm mb-2">No rules defined.</div>
+                        )}
+                        <button onClick={handleAddRule} className="flex items-center gap-1 text-xs bg-slate-800 hover:bg-slate-700 text-blue-400 px-3 py-1.5 rounded border border-slate-700">
+                            <Plus size={14}/> {dict.addRule}
+                        </button>
+                    </div>
+                </div>
+
+                <h4 className="text-white font-bold mb-4">{dict.paramErrorInjection}</h4>
+                <div className="space-y-4">
+                    {device.parameters?.filter(p => p.type === ParameterType.NUMBER).map((param, idx) => (
+                        <div key={idx} className="bg-slate-800/30 p-4 rounded border border-slate-700">
+                            <div className="font-bold text-blue-400 mb-2">{param.name}</div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label className="block text-[10px] text-slate-500 mb-1">{dict.driftRate}</label>
+                                    <input 
+                                        type="number" 
+                                        step="0.1"
+                                        value={param.error_config?.drift_rate || ''}
+                                        onChange={e => handleParamConfigChange(idx, 'error_config', 'drift_rate', parseFloat(e.target.value))}
+                                        className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white" 
+                                        placeholder="0.0"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] text-slate-500 mb-1">{dict.anomalyProb}</label>
+                                    <input 
+                                        type="number" 
+                                        step="0.01"
+                                        min="0" max="1"
+                                        value={param.error_config?.anomaly_probability || ''}
+                                        onChange={e => handleParamConfigChange(idx, 'error_config', 'anomaly_probability', parseFloat(e.target.value))}
+                                        className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white" 
+                                        placeholder="0.05"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] text-slate-500 mb-1">{dict.dropProb || 'Drop Prob'}</label>
+                                    <input 
+                                        type="number" 
+                                        step="0.01"
+                                        min="0" max="1"
+                                        value={param.error_config?.mcar_probability || ''}
+                                        onChange={e => handleParamConfigChange(idx, 'error_config', 'mcar_probability', parseFloat(e.target.value))}
+                                        className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white" 
+                                        placeholder="0.01"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] text-slate-500 mb-1">{dict.noiseStdDev || 'Noise (StdDev)'}</label>
+                                    <input 
+                                        type="number" 
+                                        step="0.1"
+                                        min="0"
+                                        value={param.error_config?.noise_std_dev || ''}
+                                        onChange={e => handleParamConfigChange(idx, 'error_config', 'noise_std_dev', parseFloat(e.target.value))}
+                                        className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white" 
+                                        placeholder="0.5"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                    {device.parameters?.filter(p => p.type === ParameterType.NUMBER).length === 0 && (
+                        <div className="text-slate-500 italic text-sm">{dict.noNumericParams}</div>
+                    )}
+                </div>
             </div>
           )}
         </div>

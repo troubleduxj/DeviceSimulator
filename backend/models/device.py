@@ -33,6 +33,7 @@ class Parameter(BaseModel):
     default_value: Optional[Any] = None
     generation_mode: GenerationMode = GenerationMode.RANDOM  # 使用 Enum
     generation_params: Dict[str, Any] = Field(default_factory=dict)
+    error_config: Dict[str, Any] = Field(default_factory=dict)  # Add error_config
 
     @validator('max_value')
     def validate_max_value(cls, v, values):
@@ -47,9 +48,12 @@ class Device(BaseModel):
     type: str
     model: Optional[str] = None
     description: Optional[str] = None
+    visual_model: Optional[str] = "Generic" # Add visual_model (transient field)
     parameters: List[Parameter] = Field(default_factory=list)
     sampling_rate: int = 1000  # 采样频率，单位：毫秒
     status: DeviceStatus = DeviceStatus.STOPPED  # 使用 Enum
+    physics_config: Dict[str, Any] = Field(default_factory=dict) # Add physics_config
+    logic_rules: List[Dict[str, Any]] = Field(default_factory=list) # Add logic_rules
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
 
@@ -69,5 +73,7 @@ class DeviceDB(Base):
     parameters = Column(JSON)
     sampling_rate = Column(Integer, default=1000)
     status = Column(String, default="stopped")
+    physics_config = Column(JSON, default={}) # Add physics_config
+    logic_rules = Column(JSON, default=[]) # Add logic_rules
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)

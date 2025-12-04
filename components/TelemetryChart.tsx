@@ -2,16 +2,19 @@
 import React from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Device, SimulationStep } from '../types';
+import { Download } from 'lucide-react';
+import { formatTime } from '../utils/timeUtils';
 
 interface TelemetryChartProps {
   device: Device;
   data: SimulationStep[];
   dict: any;
+  onExport?: () => void;
 }
 
 const COLORS = ['#3b82f6', '#ef4444', '#22c55e', '#eab308', '#a855f7'];
 
-export const TelemetryChart: React.FC<TelemetryChartProps> = ({ device, data, dict }) => {
+export const TelemetryChart: React.FC<TelemetryChartProps> = ({ device, data, dict, onExport }) => {
   if (!device || data.length === 0) {
     return (
       <div className="h-full w-full flex items-center justify-center bg-slate-900/50 rounded-lg border border-slate-800 text-slate-500">
@@ -24,12 +27,24 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({ device, data, di
   const formattedData = data.map(d => ({
     ...d,
     ...d.metrics,
-    time: new Date(d.timestamp).toLocaleTimeString([], { hour12: false, second: '2-digit', minute: '2-digit' })
+    time: formatTime(d.timestamp)
   }));
 
   return (
     <div className="h-full w-full bg-slate-900/50 rounded-lg border border-slate-800 p-3 flex flex-col">
-      <h3 className="text-sm font-semibold text-slate-300 mb-2 shrink-0">{dict.telemetry}</h3>
+      <div className="flex justify-between items-center mb-2 shrink-0">
+        <h3 className="text-sm font-semibold text-slate-300">{dict.telemetry}</h3>
+        {onExport && (
+          <button 
+            onClick={onExport}
+            disabled={data.length === 0}
+            className="flex items-center gap-1 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-blue-400 border border-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Export CSV"
+          >
+            <Download size={12} /> CSV
+          </button>
+        )}
+      </div>
       <div className="flex-1 w-full min-h-0">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={formattedData}>
