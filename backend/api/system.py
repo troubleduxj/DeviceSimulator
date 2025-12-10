@@ -74,6 +74,11 @@ def get_tdengine_config():
     """获取TDengine配置"""
     return ConfigService.get_tdengine_config()
 
+@router.get("/tdengine/info")
+def get_tdengine_info():
+    """获取TDengine数据库信息"""
+    return tdengine_service.get_database_info()
+
 @router.post("/tdengine/test-connection")
 def test_tdengine_connection(config_data: dict = None):
     """测试TDengine连接"""

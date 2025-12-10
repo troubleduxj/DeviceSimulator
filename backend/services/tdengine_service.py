@@ -251,7 +251,154 @@ class TDengineService:
         else:
             return "DOUBLE"  # 默认使用DOUBLE类型
 
-    def create_super_table(self, name: str, parameters: List[Any]) -> bool:
+    def delete_device_data(self, device_id: str, start_time: str = None, end_time: str = None) -> bool:
+        """
+        删除设备数据
+        :param device_id: 设备ID
+        :param start_time: 开始时间 (ISO string or timestamp)
+        :param end_time: 结束时间 (ISO string or timestamp)
+        :return: 是否成功
+        """
+        if not self.conn and not self.connect():
+            return False
+            
+        table_name = f"`device_{device_id}`"
+        
+        try:
+            sql = f"DELETE FROM {table_name}"
+            conditions = []
+            
+            if start_time:
+                conditions.append(f"ts >= '{start_time}'")
+            if end_time:
+                conditions.append(f"ts <= '{end_time}'")
+                
+            if conditions:
+                sql += f" WHERE {' AND '.join(conditions)}"
+            else:
+                # 如果没有指定时间范围，TDengine可能需要WHERE子句，这里使用一个总是为真的条件来清除所有
+                # 或者直接 DELETE FROM table (取决于版本支持)
+                # 安全起见，使用宽泛的时间范围
+                sql += " WHERE ts >= 0"
+
+            print(f"执行删除SQL: {sql}")
+            
+            if self.use_rest:
+                res = self._rest_execute(sql)
+                if res.get('code') == 0 or res.get('status') == 'succ':
+                    return True
+                else:
+                    print(f"删除数据失败 (REST): {res}")
+                    return False
+            else:
+                self.conn.execute(sql)
+                return True
+                
+        except Exception as e:
+            print(f"删除数据异常: {e}")
+            return False
+
+    def get_device_data_range(self, device_id: str) -> Dict[str, str]:
+        """获取设备数据的时间范围"""
+        if not self.conn and not self.connect():
+            return None
+        
+        table_name = f"`device_{device_id}`"
+        # TDengine uses FIRST(ts), LAST(ts)
+        sql = f"SELECT FIRST(ts), LAST(ts) FROM {table_name}"
+        
+        try:
+            results = self.execute_query(sql)
+            if results and len(results) > 0:
+                row = results[0]
+                # row is a dict, values should be [start, end]
+                values = list(row.values())
+                if len(values) >= 2:
+                    start = values[0]
+                    end = values[1]
+                    
+                    if start is None or end is None:
+                        return None
+
+                    # Convert to ISO string
+                    if hasattr(start, 'isoformat'): start = start.isoformat()
+                    if hasattr(end, 'isoformat'): end = end.isoformat()
+                    
+                    return {"start_time": str(start), "end_time": str(end)}
+            return None
+        except Exception as e:
+            # Table might not exist or empty
+            return None
+
+    def get_database_info(self) -> Dict[str, Any]:
+        """获取数据库基本信息"""
+        if not self.conn and not self.connect():
+             return None
+        
+        info = {
+            "version": "Unknown",
+            "created_at": "Unknown",
+            "tables_count": 0,
+            "stables_count": 0
+        }
+
+        try:
+            # 1. Get Version
+            res_ver = self.execute_query("SELECT SERVER_VERSION()")
+            if res_ver and len(res_ver) > 0:
+                # result key might be 'server_version()' or similar
+                info["version"] = list(res_ver[0].values())[0]
+
+            # 2. Get Tables Count
+            # Note: SHOW TABLES in 3.x might be different or require specific handling
+            # Using count if possible, or just length of list
+            # SHOW TABLES might return many rows, so be careful. 
+            # Ideally: SELECT COUNT(*) FROM information_schema.ins_tables WHERE db_name = ...
+            # But let's try SHOW TABLES first as it's more standard across versions for simple use
+            
+            # Using information_schema is better for 3.x
+            try:
+                # Try 3.x style
+                res_tables = self.execute_query(f"SELECT COUNT(*) FROM information_schema.ins_tables WHERE db_name = '{self.database}'")
+                if res_tables and len(res_tables) > 0:
+                     info["tables_count"] = list(res_tables[0].values())[0]
+                
+                res_stables = self.execute_query(f"SELECT COUNT(*) FROM information_schema.ins_stables WHERE db_name = '{self.database}'")
+                if res_stables and len(res_stables) > 0:
+                     info["stables_count"] = list(res_stables[0].values())[0]
+            except:
+                # Fallback to SHOW command (might be slow for many tables)
+                try:
+                    tables = self.execute_query("SHOW TABLES")
+                    info["tables_count"] = len(tables)
+                    
+                    stables = self.execute_query("SHOW STABLES")
+                    info["stables_count"] = len(stables)
+                except:
+                    pass
+
+            # 3. Get Database Info (Created Time)
+            try:
+                # SHOW DATABASES returns list. Filter for current db.
+                dbs = self.execute_query("SHOW DATABASES")
+                for db in dbs:
+                    # Key might be 'name' or 'name' (lowercase/uppercase)
+                    name = db.get('name') or db.get('Name')
+                    if name == self.database:
+                        created = db.get('created_time') or db.get('create_time')
+                        if created:
+                            info["created_at"] = created
+                        break
+            except:
+                pass
+
+            return info
+
+        except Exception as e:
+            print(f"获取数据库信息失败: {e}")
+            return info
+
+    def create_super_table(self, name: str, parameters: List[Dict[str, Any]]) -> bool:
         """创建超级表 (支持Schema Evolution)"""
         # 1. Check if STABLE exists
         exists_sql = f"SHOW STABLES LIKE '{name}'"
@@ -260,14 +407,28 @@ class TDengineService:
         if not existing:
             # Create new
             columns_sql = "ts TIMESTAMP"
+            custom_tags_sql = ""
+            
             for param in parameters:
                 p_type = param.type if hasattr(param, 'type') else param.get('type')
                 p_id = param.id if hasattr(param, 'id') else param.get('id')
+                
+                # Skip reserved tag names that are hardcoded below
+                if p_id in ['device_name', 'device_model']:
+                    continue
+
+                # Check is_tag
+                is_tag = param.is_tag if hasattr(param, 'is_tag') else param.get('is_tag', False)
+                
                 col_type = self._get_tdengine_type(p_type)
-                columns_sql += f", `{p_id}` {col_type}"
+                
+                if is_tag:
+                    custom_tags_sql += f", `{p_id}` {col_type}"
+                else:
+                    columns_sql += f", `{p_id}` {col_type}"
             
-            tags_sql = "device_id NCHAR(64), device_name NCHAR(64), device_model NCHAR(64)"
-            sql = f"CREATE STABLE IF NOT EXISTS {name} ({columns_sql}) TAGS ({tags_sql})"
+            tags_sql = "device_name NCHAR(64), device_model NCHAR(64)" + custom_tags_sql
+            sql = f"CREATE STABLE IF NOT EXISTS `{name}` ({columns_sql}) TAGS ({tags_sql})"
             
             try:
                 print(f"创建超级表 SQL: {sql}")
@@ -279,12 +440,8 @@ class TDengineService:
         else:
             # STABLE exists, check columns and add missing ones
             try:
-                desc_sql = f"DESCRIBE {name}"
+                desc_sql = f"DESCRIBE `{name}`"
                 cols_info = self.execute_query(desc_sql)
-                # cols_info format depends on connector, usually list of dicts with 'Field', 'Type', etc.
-                # or execute_query normalizes it.
-                # Based on execute_query impl, it returns list of dicts. 
-                # Keys depend on TDengine version but usually 'Field', 'Type', 'Length', 'Note'
                 
                 existing_cols = set()
                 for col in cols_info:
@@ -295,11 +452,21 @@ class TDengineService:
                 
                 for param in parameters:
                     p_id = param.id if hasattr(param, 'id') else param.get('id')
+                    # Check is_tag
+                    is_tag = param.is_tag if hasattr(param, 'is_tag') else param.get('is_tag', False)
+                    
                     if p_id not in existing_cols:
-                        # Add column
+                        # Add column or tag
                         p_type = param.type if hasattr(param, 'type') else param.get('type')
                         col_type = self._get_tdengine_type(p_type)
-                        alter_sql = f"ALTER STABLE {name} ADD COLUMN `{p_id}` {col_type}"
+                        
+                        if is_tag:
+                            # Add TAG (TDengine supports ADD TAG?)
+                            # ALTER STABLE <stable_name> ADD TAG <tag_name> <tag_type>;
+                            alter_sql = f"ALTER STABLE `{name}` ADD TAG `{p_id}` {col_type}"
+                        else:
+                            alter_sql = f"ALTER STABLE `{name}` ADD COLUMN `{p_id}` {col_type}"
+                            
                         print(f"更新超级表结构: {alter_sql}")
                         self.execute_update(alter_sql)
                         
@@ -312,11 +479,31 @@ class TDengineService:
         """创建子表"""
         # TAGS values
         # We need to match the order of tags defined in create_super_table
-        # tags: device_id, device_name, device_model
+        # Standard tags: device_name, device_model (device_id removed)
         
-        tag_values = f"'{tags.get('device_id')}', '{tags.get('device_name')}', '{tags.get('device_model', '')}'"
+        tag_vals = [
+            f"'{tags.get('device_name')}'", 
+            f"'{tags.get('device_model', '')}'"
+        ]
         
-        sql = f"CREATE TABLE IF NOT EXISTS {sub_table} USING {super_table} TAGS ({tag_values})"
+        # Append custom tags (must be passed in 'tags' dict)
+        # We iterate over keys that are NOT standard keys
+        standard_keys = {'device_id', 'device_name', 'device_model'}
+        
+        for k, v in tags.items():
+            if k not in standard_keys:
+                if v is None:
+                    tag_vals.append("NULL")
+                elif isinstance(v, str):
+                    tag_vals.append(f"'{v}'")
+                elif isinstance(v, bool):
+                    tag_vals.append("true" if v else "false")
+                else:
+                    tag_vals.append(str(v))
+        
+        tag_values_str = ", ".join(tag_vals)
+        
+        sql = f"CREATE TABLE IF NOT EXISTS {sub_table} USING `{super_table}` TAGS ({tag_values_str})"
         try:
             print(f"创建子表 SQL: {sql}")
             self.execute_update(sql)
@@ -405,10 +592,35 @@ class TDengineService:
             print(f"批量插入数据失败: {e}")
             return False
     
-    def get_device_data(self, device_id: str, limit: int = 100) -> List[Dict[str, Any]]:
-        """获取设备的最新数据"""
+    def get_device_data(self, device_id: str, limit: int = 100, start_time: str = None, end_time: str = None) -> List[Dict[str, Any]]:
+        """获取设备的数据，支持分页和时间范围"""
         table_name = f"`device_{device_id}`"
-        sql = f"SELECT * FROM {table_name} ORDER BY ts DESC LIMIT {limit}"
+        
+        conditions = []
+        if start_time:
+            conditions.append(f"ts >= '{start_time}'")
+        if end_time:
+            conditions.append(f"ts <= '{end_time}'")
+            
+        where_clause = ""
+        if conditions:
+            where_clause = f"WHERE {' AND '.join(conditions)}"
+            
+        # If time range is specified, default to ASC order usually for playback/charts, 
+        # but existing behavior is DESC for "latest data". 
+        # Let's keep DESC default if no time range, but ASC if time range?
+        # Actually for "get history" usually we want ASC.
+        # But to not break existing "latest 100" calls (which expect DESC), we should be careful.
+        # Let's add an order param or infer.
+        
+        # If start_time/end_time is present, likely we want history -> ASC
+        # But let's stick to DESC for consistency unless we change API signature more.
+        # Or just return DESC and let frontend reverse.
+        
+        # For playback, we probably want ALL data in range, or at least a lot.
+        # Let's handle limit.
+        
+        sql = f"SELECT * FROM {table_name} {where_clause} ORDER BY ts DESC LIMIT {limit}"
         return self.execute_query(sql)
     
     def delete_device_table(self, device_id: str) -> bool:

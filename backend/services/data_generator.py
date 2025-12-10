@@ -12,7 +12,7 @@ from services.simulation_engine import (
 
 class DataGenerator:
     @staticmethod
-    def generate_device_data(device_id: str, parameters: list[Parameter], physics_config: Dict[str, Any] = None, logic_rules: list[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def generate_device_data(device_id: str, parameters: list[Parameter], physics_config: Dict[str, Any] = None, logic_rules: list[Dict[str, Any]] = None, timestamp: datetime = None) -> Dict[str, Any]:
         """生成设备的所有参数数据"""
         
         # 1. Get Device State
@@ -25,7 +25,8 @@ class DataGenerator:
             # Get persistent state for this parameter
             if param.id not in device_state.parameter_states:
                 # Initialize with default params from configuration
-                device_state.parameter_states[param.id] = param.generation_params.copy()
+                # Ensure generation_params is not None
+                device_state.parameter_states[param.id] = (param.generation_params or {}).copy()
             
             param_state = device_state.parameter_states[param.id]
             
@@ -75,9 +76,10 @@ class DataGenerator:
             
             final_data[param.id] = value
             
+        ts = timestamp if timestamp else datetime.utcnow()
         return {
             "device_id": device_id,
-            "timestamp": datetime.utcnow().isoformat() + 'Z',
+            "timestamp": ts.isoformat() + 'Z',
             "data": final_data
         }
 

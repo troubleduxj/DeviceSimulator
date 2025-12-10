@@ -101,6 +101,15 @@ class DeviceService:
             if existing_device:
                 raise ValueError(f"设备名称 {device.name} 已存在")
             
+            # Auto-populate device_code if present
+            for param in device.parameters:
+                if param.id == "device_code":
+                    # ALWAYS set to device.id (UUID) as per new requirement
+                    param.default_value = device.id
+                elif param.id == "device_name":
+                    # Sync device_name parameter with device name
+                    param.default_value = device.name
+
             # 将参数列表转换为JSON字符串
             parameters_json = json.dumps([param.dict() for param in device.parameters])
             
@@ -140,13 +149,22 @@ class DeviceService:
                     except Exception as e:
                         print(f"检查超级表失败 (可能已存在): {e}")
 
-                    # 创建子表
+                    # Create sub-table
                     sub_table_name = f"`device_{device.id}`"
                     tags = {
-                        "device_id": device.id,
                         "device_name": device.name,
                         "device_model": device.model
                     }
+                    
+                    # Extract custom tags from parameters
+                    for param in device.parameters:
+                        if hasattr(param, 'is_tag') and param.is_tag:
+                            p_id = param.id
+                            # Don't overwrite standard tags
+                            if p_id in ["device_name", "device_model"]:
+                                continue
+                            tags[p_id] = param.default_value
+
                     print(f"正在创建子表: {sub_table_name} tags={tags}")
                     result = tdengine_service.create_sub_table(st_name, sub_table_name, tags)
                     if result:
@@ -184,6 +202,13 @@ class DeviceService:
             if other_device:
                 raise ValueError(f"设备名称 {device.name} 已被其他设备使用")
             
+            # Auto-populate device_code/device_name if present
+            for param in device.parameters:
+                if param.id == "device_code":
+                    param.default_value = device.id
+                elif param.id == "device_name":
+                    param.default_value = device.name
+
             # 将参数列表转换为JSON字符串
             parameters_json = json.dumps([param.dict() for param in device.parameters])
             
@@ -219,6 +244,16 @@ class DeviceService:
                             "device_name": device.name,
                             "device_model": device.model
                         }
+                        
+                        # Extract custom tags from parameters
+                        for param in device.parameters:
+                            if hasattr(param, 'is_tag') and param.is_tag:
+                                p_id = param.id
+                                # Don't overwrite standard tags
+                                if p_id in ["device_name", "device_model"]:
+                                    continue
+                                tags[p_id] = param.default_value
+
                         tdengine_service.create_sub_table(st_name, sub_table_name, tags)
                     else:
                         tdengine_service.create_table_for_device(device)

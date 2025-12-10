@@ -22,6 +22,8 @@ import { DeviceManager } from './components/DeviceManager';
 import { SystemManager } from './components/SystemManager';
 import { CategoryManager } from './components/CategoryManager';
 import { Dashboard } from './components/Dashboard';
+import { Playback } from './components/Playback';
+import { RealtimeMonitor } from './components/RealtimeMonitor';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 const MAX_HISTORY = 60; // Keep 60 seconds of history
@@ -35,7 +37,7 @@ const App: React.FC = () => {
   const [language, setLanguage] = useState<'en' | 'zh'>('en');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [metricsViewMode, setMetricsViewMode] = useState<'grid' | 'list'>('grid');
-  const [currentView, setCurrentView] = useState<'monitor' | 'devices' | 'categories' | 'models' | 'system' | 'dashboard'>('dashboard');
+  const [currentView, setCurrentView] = useState<'monitor' | 'devices' | 'categories' | 'models' | 'system' | 'dashboard' | 'playback' | 'realtime'>('dashboard');
   
   // --- Simulation State ---
   const [history, setHistory] = useState<SimulationStep[]>([]);
@@ -379,6 +381,32 @@ const App: React.FC = () => {
                 <LayoutDashboard size={18} />
                 {!isSidebarCollapsed && <span>{dict.dashboard}</span>}
             </button>
+
+            <button
+                onClick={() => setCurrentView('realtime')}
+                className={`flex items-center gap-3 p-2 rounded-md transition-colors text-sm ${
+                    currentView === 'realtime' 
+                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' 
+                    : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                } ${isSidebarCollapsed ? 'justify-center' : ''}`}
+                title={dict.monitorTitle || 'Real-time Monitor'}
+            >
+                <Activity size={18} />
+                {!isSidebarCollapsed && <span>{dict.monitorTitle || 'Monitor'}</span>}
+            </button>
+
+            <button
+                onClick={() => setCurrentView('playback')}
+                className={`flex items-center gap-3 p-2 rounded-md transition-colors text-sm ${
+                    currentView === 'playback' 
+                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' 
+                    : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                } ${isSidebarCollapsed ? 'justify-center' : ''}`}
+                title={dict.playbackTitle || 'Historical Playback'}
+            >
+                <Play size={18} />
+                {!isSidebarCollapsed && <span>{dict.playbackTitle || 'Playback'}</span>}
+            </button>
             
             <div className="h-px bg-slate-800 my-2 mx-2" />
             {!isSidebarCollapsed && <div className="text-xs font-bold text-slate-500 px-3 mb-1 uppercase tracking-wider">{dict.systemSettingsGroup}</div>}
@@ -431,7 +459,7 @@ const App: React.FC = () => {
         </div>
 
         {/* Device List */}
-        <div className="flex-1 overflow-y-auto py-4 px-2 space-y-1">
+        <div className="flex-1 overflow-y-auto py-4 px-2 space-y-1 no-scrollbar">
             {!isSidebarCollapsed && <div className="text-xs font-bold text-slate-500 px-3 mb-2 uppercase tracking-wider">{dict.devices}</div>}
             
             {devices.map(device => (
@@ -439,10 +467,12 @@ const App: React.FC = () => {
                     key={device.id}
                     onClick={() => {
                         setActiveDeviceId(device.id);
-                        setCurrentView('monitor');
+                        if (currentView !== 'playback' && currentView !== 'realtime') {
+                            setCurrentView('monitor');
+                        }
                     }}
                     className={`w-full flex items-center gap-3 p-2 rounded-md transition-colors text-sm whitespace-nowrap overflow-hidden ${
-                        activeDeviceId === device.id && currentView === 'monitor'
+                        activeDeviceId === device.id && (currentView === 'monitor' || currentView === 'playback' || currentView === 'realtime')
                         ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' 
                         : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                     } ${isSidebarCollapsed ? 'justify-center' : ''}`}
@@ -704,14 +734,39 @@ const App: React.FC = () => {
 
             {/* Case 2: Dashboard View */}
             {currentView === 'dashboard' && (
-                <Dashboard 
-                    devices={devices} 
-                    onSelectDevice={(id) => {
-                        setActiveDeviceId(id);
-                        setCurrentView('monitor');
-                    }}
-                    dict={dict}
-                />
+                <div className="flex-1 min-w-0">
+                    <Dashboard 
+                        devices={devices} 
+                        onSelectDevice={(id) => {
+                            setActiveDeviceId(id);
+                            setCurrentView('monitor');
+                        }}
+                        dict={dict}
+                    />
+                </div>
+            )}
+
+            {currentView === 'playback' && (
+                <div className="flex-1 min-w-0">
+                    <Playback 
+                        devices={devices} 
+                        activeDeviceId={activeDeviceId}
+                        onDeviceChange={setActiveDeviceId}
+                        dict={dict} 
+                    />
+                </div>
+            )}
+
+            {currentView === 'realtime' && (
+                <div className="flex-1 min-w-0">
+                    <RealtimeMonitor 
+                        devices={devices} 
+                        activeDeviceId={activeDeviceId}
+                        onDeviceChange={setActiveDeviceId}
+                        history={history}
+                        dict={dict} 
+                    />
+                </div>
             )}
 
             {/* Case 3: Manager Views */}

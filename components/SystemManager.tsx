@@ -22,19 +22,22 @@ export const SystemManager: React.FC<SystemManagerProps> = ({ onClose, dict }) =
   const [isLoading, setIsLoading] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [tdengineInfo, setTdengineInfo] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'general' | 'tdengine' | 'mqtt' | 'modbus' | 'opcua'>('general');
 
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [statusData, configData, settingsData] = await Promise.all([
+      const [statusData, configData, settingsData, infoData] = await Promise.all([
         backendService.fetchSystemStatus(),
         backendService.fetchTDengineConfig(),
-        backendService.fetchSystemSettings()
+        backendService.fetchSystemSettings(),
+        backendService.fetchTDengineInfo()
       ]);
       setStatus(statusData);
       setConfig(configData);
       setSystemSettings(settingsData);
+      setTdengineInfo(infoData);
     } catch (error) {
       console.error("Failed to fetch system data", error);
     } finally {
@@ -162,7 +165,7 @@ export const SystemManager: React.FC<SystemManagerProps> = ({ onClose, dict }) =
           </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+      <div className="flex-1 overflow-y-auto p-6 space-y-6 no-scrollbar">
           
           {/* General Tab */}
           {activeTab === 'general' && (
@@ -197,6 +200,7 @@ export const SystemManager: React.FC<SystemManagerProps> = ({ onClose, dict }) =
 
           {/* TDengine Tab */}
           {activeTab === 'tdengine' && (
+              <>
               <div className="bg-slate-800 p-6 rounded-lg border border-slate-700">
                   <div className="flex items-center justify-between mb-6">
                       <h3 className="text-lg font-bold text-white flex items-center gap-2">
@@ -210,6 +214,27 @@ export const SystemManager: React.FC<SystemManagerProps> = ({ onClose, dict }) =
                         <div className={`w-3 h-3 rounded-full ${status?.tdengine_connected ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
                       </div>
                   </div>
+
+                  {status?.tdengine_connected && tdengineInfo && (
+                      <div className="mb-6 bg-slate-900/50 p-4 rounded border border-slate-700/50 grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div>
+                              <div className="text-[10px] uppercase text-slate-500 font-bold">Version</div>
+                              <div className="text-white font-mono text-sm">{tdengineInfo.version}</div>
+                          </div>
+                          <div>
+                              <div className="text-[10px] uppercase text-slate-500 font-bold">Created At</div>
+                              <div className="text-white font-mono text-sm">{tdengineInfo.created_at || 'N/A'}</div>
+                          </div>
+                          <div>
+                              <div className="text-[10px] uppercase text-slate-500 font-bold">Tables</div>
+                              <div className="text-white font-mono text-sm">{tdengineInfo.tables_count}</div>
+                          </div>
+                          <div>
+                              <div className="text-[10px] uppercase text-slate-500 font-bold">Super Tables</div>
+                              <div className="text-white font-mono text-sm">{tdengineInfo.stables_count}</div>
+                          </div>
+                      </div>
+                  )}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                       <div className="space-y-4">
@@ -301,6 +326,41 @@ export const SystemManager: React.FC<SystemManagerProps> = ({ onClose, dict }) =
                       )}
                   </div>
               </div>
+
+              {/* Subtable Settings Card */}
+              <div className="bg-slate-800 p-6 rounded-lg border border-slate-700 mt-6">
+                  <div className="flex items-center justify-between mb-6">
+                      <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                          <Settings className="text-cyan-400" />
+                          {dict.subtableSettings}
+                      </h3>
+                  </div>
+
+                  <div className="space-y-4">
+                      <div>
+                          <label className="block text-xs uppercase text-slate-500 font-bold mb-1">{dict.subtableNameTemplate}</label>
+                          <input 
+                              type="text" 
+                              value={config.subtable_name_template || 'd_{device_id}'}
+                              onChange={e => setConfig({...config, subtable_name_template: e.target.value})}
+                              className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white focus:border-blue-500 outline-none font-mono"
+                              placeholder="d_{device_id}"
+                          />
+                          <p className="text-xs text-slate-500 mt-1">{dict.subtableNameHint}</p>
+                          <p className="text-xs text-slate-400 mt-1">{dict.subtableNameExample}</p>
+                      </div>
+                  </div>
+
+                  <div className="flex items-center gap-4 pt-4 mt-4 border-t border-slate-700">
+                      <button 
+                          onClick={handleSaveConfig}
+                          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold transition-colors"
+                      >
+                          <Save size={16} /> {dict.saveConfig}
+                      </button>
+                  </div>
+              </div>
+              </>
           )}
 
           {/* MQTT Tab */}

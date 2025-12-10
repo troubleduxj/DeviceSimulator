@@ -34,6 +34,7 @@ class Parameter(BaseModel):
     generation_mode: GenerationMode = GenerationMode.RANDOM  # 使用 Enum
     generation_params: Dict[str, Any] = Field(default_factory=dict)
     error_config: Dict[str, Any] = Field(default_factory=dict)  # Add error_config
+    is_tag: bool = False # TDengine: true for TAG, false for COLUMN
 
     @validator('max_value')
     def validate_max_value(cls, v, values):

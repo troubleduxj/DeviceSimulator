@@ -3,7 +3,7 @@ import {
   Category, backendService, BackendParameter, ParameterType, GenerationMode 
 } from '../services/backendService';
 import { 
-  Plus, Trash2, Edit, Save, X, Folder, Database, RefreshCw, AlertTriangle 
+  Plus, Trash2, Edit, Save, X, Folder, Database, RefreshCw, AlertTriangle, Settings 
 } from 'lucide-react';
 
 interface CategoryManagerProps {
@@ -13,32 +13,47 @@ interface CategoryManagerProps {
 
 export const CategoryManager: React.FC<CategoryManagerProps> = ({ onClose, dict }) => {
   const [categories, setCategories] = useState<Category[]>([]);
+  const [deviceCounts, setDeviceCounts] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Partial<Category> | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [syncResult, setSyncResult] = useState<{success: string[], failed: string[]} | null>(null);
 
-  const fetchCategories = async () => {
+  const fetchData = async () => {
     setIsLoading(true);
     try {
-      const data = await backendService.fetchCategories();
-      setCategories(data);
+      const [cats, devs] = await Promise.all([
+        backendService.fetchCategories(),
+        backendService.fetchBackendDevices()
+      ]);
+      setCategories(cats);
+      
+      // Calculate counts
+      const counts: Record<string, number> = {};
+      cats.forEach(c => counts[c.code] = 0); // Initialize
+      devs.forEach(d => {
+        if (counts[d.type] !== undefined) {
+            counts[d.type]++;
+        }
+      });
+      setDeviceCounts(counts);
+
     } catch (error) {
-      console.error('Error fetching categories:', error);
+      console.error('Error fetching data:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchCategories();
+    fetchData();
   }, []);
 
   const handleDelete = async (id: string) => {
     if (!confirm(dict.deleteCategoryConfirm)) return;
     try {
       await backendService.deleteCategory(id);
-      fetchCategories();
+      fetchData();
     } catch (error) {
       alert(dict.deleteFailed || 'Failed to delete category');
     }
@@ -64,7 +79,7 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ onClose, dict 
       }
       setIsFormOpen(false);
       setEditingCategory(null);
-      fetchCategories();
+      fetchData();
     } catch (error: any) {
       alert(error.message || dict.saveFailed || 'Failed to save category');
     }
@@ -116,7 +131,7 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ onClose, dict 
             {dict.syncSchema}
           </button>
           <button 
-            onClick={fetchCategories} 
+            onClick={fetchData} 
             className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded"
             title={dict.refresh}
           >
@@ -146,7 +161,7 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ onClose, dict 
       )}
 
       {/* List */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto p-4 no-scrollbar">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {categories.map(cat => (
             <div key={cat.id} className="bg-slate-800 p-4 rounded border border-slate-700 hover:border-slate-600 transition-all group">
@@ -165,10 +180,14 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ onClose, dict 
                 </div>
               </div>
               <p className="text-sm text-slate-400 mb-3 line-clamp-2">{cat.description || dict.noDescription}</p>
-              <div className="text-xs text-slate-500 bg-slate-900/50 p-2 rounded">
+              <div className="text-xs text-slate-500 bg-slate-900/50 p-2 rounded space-y-1">
                 <div className="flex justify-between">
                    <span>{dict.parameters}:</span>
-                   <span className="text-slate-300">{cat.parameters?.length || 0}</span>
+                   <span className="text-slate-300 font-mono">{cat.parameters?.length || 0}</span>
+                </div>
+                <div className="flex justify-between">
+                   <span>{dict.deviceCount || 'Devices'}:</span>
+                   <span className="text-blue-400 font-mono font-bold">{deviceCounts[cat.code] || 0}</span>
                 </div>
               </div>
             </div>
@@ -199,22 +218,24 @@ interface CategoryFormProps {
 }
 
 const CategoryForm: React.FC<CategoryFormProps> = ({ category: initialCategory, onSave, onCancel, dict }) => {
-  const [category, setCategory] = useState(initialCategory);
-  const [activeTab, setActiveTab] = useState<'basic' | 'params' | 'advanced'>('basic');
-
-  // Ensure parameters is an array
-  useEffect(() => {
-    if (!category.parameters) {
-      setCategory(prev => ({ ...prev, parameters: [] }));
-    } else if (typeof category.parameters === 'string') {
+  // Initialize with proper parameters array
+  const getInitialCategory = () => {
+    let params = initialCategory.parameters;
+    if (!params) {
+      params = [];
+    } else if (typeof params === 'string') {
       try {
-        const parsed = JSON.parse(category.parameters);
-        setCategory(prev => ({ ...prev, parameters: Array.isArray(parsed) ? parsed : [] }));
+        const parsed = JSON.parse(params);
+        params = Array.isArray(parsed) ? parsed : [];
       } catch (e) {
-        setCategory(prev => ({ ...prev, parameters: [] }));
+        params = [];
       }
     }
-  }, []);
+    return { ...initialCategory, parameters: params };
+  };
+
+  const [category, setCategory] = useState(getInitialCategory);
+  const [activeTab, setActiveTab] = useState<'basic' | 'params' | 'advanced'>('basic');
 
   const handleParamChange = (index: number, field: keyof BackendParameter, value: any) => {
     const newParams = [...(category.parameters as BackendParameter[] || [])];
@@ -274,7 +295,8 @@ const CategoryForm: React.FC<CategoryFormProps> = ({ category: initialCategory, 
           min_value: 0,
           max_value: 100,
           generation_mode: GenerationMode.RANDOM,
-          generation_params: {}
+          generation_params: {},
+          is_tag: false
         }
       ]
     });
@@ -288,7 +310,7 @@ const CategoryForm: React.FC<CategoryFormProps> = ({ category: initialCategory, 
 
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-      <div className="bg-slate-900 border border-slate-700 rounded-lg w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl">
+      <div className="bg-slate-900 border border-slate-700 rounded-lg w-full max-w-6xl max-h-[90vh] flex flex-col shadow-2xl">
         <div className="p-4 border-b border-slate-800 flex justify-between items-center">
           <h3 className="text-lg font-bold text-white">
             {category.id ? dict.editCategory : dict.createCategory}
@@ -318,7 +340,7 @@ const CategoryForm: React.FC<CategoryFormProps> = ({ category: initialCategory, 
             </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-6 no-scrollbar">
             {activeTab === 'basic' && (
                 <div className="space-y-4 max-w-lg mx-auto">
                    <div>
@@ -373,79 +395,185 @@ const CategoryForm: React.FC<CategoryFormProps> = ({ category: initialCategory, 
                    </div>
                    
                    <div className="space-y-3">
-                     {(category.parameters as BackendParameter[])?.map((param, idx) => (
-                        <div key={idx} className="bg-slate-800/50 p-3 rounded border border-slate-700 flex flex-wrap gap-3 items-end">
+                     {/* System Timestamp Parameter (Read-only) */}
+                     <div className="p-3 rounded border border-slate-700 bg-slate-900/30 flex flex-wrap gap-3 items-end opacity-70">
+                        <div className="w-[90px]">
+                            <label className="block text-[10px] text-slate-500 mb-1">{dict.paramIsTag || 'Field'}</label>
+                            <div className="w-full border border-slate-700 rounded px-2 py-1 text-sm font-bold bg-slate-800 text-slate-400">
+                                {dict.tagColumn || 'Column'}
+                            </div>
+                        </div>
+                        <div className="w-[120px]">
+                            <label className="block text-[10px] text-slate-500 mb-1">{dict.paramId || 'ID'}</label>
+                            <input type="text" value="ts" disabled className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-slate-500 font-mono" />
+                        </div>
+                        <div className="w-[140px]">
+                            <label className="block text-[10px] text-slate-500 mb-1">{dict.paramName || 'Name'}</label>
+                            <input type="text" value={dict.startTime || "Timestamp"} disabled className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-slate-500" />
+                        </div>
+                        <div className="w-[100px]">
+                            <label className="block text-[10px] text-slate-500 mb-1">{dict.paramType || 'Data Type'}</label>
+                            <div className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-slate-500">
+                                Timestamp
+                            </div>
+                        </div>
+                        <div className="w-[70px]">
+                            <label className="block text-[10px] text-slate-500 mb-1">{dict.paramUnit || 'Unit'}</label>
+                            <input type="text" value="ms" disabled className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-slate-500" />
+                        </div>
+                        <div className="flex-1"></div>
+                        <div className="w-[30px] flex justify-center pb-2">
+                            <Settings size={16} className="text-slate-600" />
+                        </div>
+                     </div>
+
+                     {/* System Device Code Parameter (Read-only) */}
+                     <div className="p-3 rounded border border-slate-700 bg-slate-900/30 flex flex-wrap gap-3 items-end opacity-70">
+                        <div className="w-[90px]">
+                            <label className="block text-[10px] text-slate-500 mb-1">{dict.paramIsTag || 'Field'}</label>
+                            <div className="w-full border border-slate-700 rounded px-2 py-1 text-sm font-bold bg-slate-800 text-slate-400">
+                                {dict.tagTag || 'Tag'}
+                            </div>
+                        </div>
+                        <div className="w-[120px]">
+                            <label className="block text-[10px] text-slate-500 mb-1">{dict.paramId || 'ID'}</label>
+                            <input type="text" value="device_code" disabled className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-slate-500 font-mono" />
+                        </div>
+                        <div className="w-[140px]">
+                            <label className="block text-[10px] text-slate-500 mb-1">{dict.paramName || 'Name'}</label>
+                            <input type="text" value="Device Code" disabled className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-slate-500" />
+                        </div>
+                        <div className="w-[100px]">
+                            <label className="block text-[10px] text-slate-500 mb-1">{dict.paramType || 'Data Type'}</label>
+                            <div className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-slate-500">
+                                STRING
+                            </div>
+                        </div>
+                         <div className="flex-1 min-w-[150px]">
+                             <label className="block text-[10px] text-slate-500 mb-1">{dict.defaultValue || 'Default Value'}</label>
+                             <input 
+                               type="text" 
+                               value="Auto-generated (UUID)" 
+                               disabled
+                               className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-slate-500"
+                             />
+                          </div>
+                        <div className="w-[30px] flex justify-center pb-2">
+                            <Settings size={16} className="text-slate-600" />
+                        </div>
+                     </div>
+
+                     {(category.parameters as BackendParameter[])?.filter(p => p.id !== 'device_code').map((param, idx) => {
+                        // Adjust index because we filtered
+                        const realIdx = (category.parameters as BackendParameter[]).findIndex(p => p === param);
+                        
+                        return (
+                        <div key={realIdx} className={`p-3 rounded border flex flex-wrap gap-3 items-end ${param.is_tag ? 'bg-amber-900/20 border-amber-700/50' : 'bg-slate-800/50 border-slate-700'}`}>
+                           {/* 字段类型选择 - 放在最前面 */}
+                           <div className="w-[90px]">
+                              <label className="block text-[10px] text-slate-500 mb-1">{dict.paramIsTag || 'Field'}</label>
+                              <select 
+                                 value={param.is_tag ? 'tag' : 'column'}
+                                 onChange={e => handleParamChange(idx, 'is_tag', e.target.value === 'tag')}
+                                 className={`w-full border rounded px-2 py-1 text-sm font-bold ${param.is_tag ? 'bg-amber-900/50 border-amber-600 text-amber-300' : 'bg-blue-900/50 border-blue-600 text-blue-300'}`}
+                              >
+                                 <option value="column">{dict.tagColumn || 'Column'}</option>
+                                 <option value="tag">{dict.tagTag || 'Tag'}</option>
+                              </select>
+                           </div>
+                           {/* 通用字段：ID、名称、数据类型 */}
                            <div className="w-[120px]">
-                              <label className="block text-[10px] text-slate-500 mb-1">{dict.paramId || 'ID (Column)'}</label>
+                              <label className="block text-[10px] text-slate-500 mb-1">{dict.paramId || 'ID'}</label>
                               <input 
                                 type="text" 
                                 value={param.id || ''} 
-                                onChange={e => handleParamChange(idx, 'id', e.target.value)}
+                                onChange={e => handleParamChange(realIdx, 'id', e.target.value)}
                                 className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white font-mono"
                                 placeholder="e.g. voltage"
                               />
                            </div>
-                           <div className="flex-1 min-w-[150px]">
+                           <div className="w-[140px]">
                               <label className="block text-[10px] text-slate-500 mb-1">{dict.paramName || 'Name'}</label>
                               <input 
                                 type="text" 
                                 value={param.name} 
-                                onChange={e => handleParamChange(idx, 'name', e.target.value)}
+                                onChange={e => handleParamChange(realIdx, 'name', e.target.value)}
                                 className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white"
                               />
                            </div>
                            <div className="w-[100px]">
-                              <label className="block text-[10px] text-slate-500 mb-1">{dict.paramType || 'Type'}</label>
+                              <label className="block text-[10px] text-slate-500 mb-1">{dict.paramType || 'Data Type'}</label>
                               <select 
                                  value={param.type}
-                                 onChange={e => handleParamChange(idx, 'type', e.target.value)}
+                                 onChange={e => handleParamChange(realIdx, 'type', e.target.value)}
                                  className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white"
                               >
                                  {Object.values(ParameterType).map(t => <option key={t} value={t}>{t}</option>)}
                               </select>
                            </div>
-                           <div className="w-[80px]">
-                              <label className="block text-[10px] text-slate-500 mb-1">{dict.paramUnit || 'Unit'}</label>
-                              <input 
-                                type="text" 
-                                value={param.unit || ''} 
-                                onChange={e => handleParamChange(idx, 'unit', e.target.value)}
-                                className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white"
-                              />
-                           </div>
-                           <div className="w-[80px]">
-                              <label className="block text-[10px] text-slate-500 mb-1">{dict.paramMin || 'Min'}</label>
-                              <input 
-                                type="number" 
-                                value={param.min_value} 
-                                onChange={e => handleParamChange(idx, 'min_value', parseFloat(e.target.value))}
-                                className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white"
-                              />
-                           </div>
-                           <div className="w-[80px]">
-                              <label className="block text-[10px] text-slate-500 mb-1">{dict.paramMax || 'Max'}</label>
-                              <input 
-                                type="number" 
-                                value={param.max_value} 
-                                onChange={e => handleParamChange(idx, 'max_value', parseFloat(e.target.value))}
-                                className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white"
-                              />
-                           </div>
-                           <div className="w-[120px]">
-                              <label className="block text-[10px] text-slate-500 mb-1">{dict.paramGenMode || 'Mode'}</label>
-                              <select 
-                                 value={param.generation_mode}
-                                 onChange={e => handleParamChange(idx, 'generation_mode', e.target.value)}
-                                 className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white"
-                              >
-                                 {Object.values(GenerationMode).map(m => <option key={m} value={m}>{m}</option>)}
-                              </select>
-                           </div>
-                           <button onClick={() => removeParam(idx)} className="p-1.5 text-slate-500 hover:text-red-400 mb-0.5">
+                           
+                           {/* Tag 类型：只显示默认值 */}
+                           {param.is_tag && (
+                              <div className="flex-1 min-w-[150px]">
+                                 <label className="block text-[10px] text-amber-400 mb-1">{dict.defaultValue || 'Default Value'}</label>
+                                 <input 
+                                   type="text" 
+                                   value={param.default_value || ''} 
+                                   onChange={e => handleParamChange(realIdx, 'default_value', e.target.value)}
+                                   className="w-full bg-slate-900 border border-amber-700/50 rounded px-2 py-1 text-sm text-white"
+                                   placeholder={dict.tagDefaultHint || 'Tag value for subtable'}
+                                 />
+                              </div>
+                           )}
+                           
+                           {/* Column 类型：显示单位、最小值、最大值、生成模式 */}
+                           {!param.is_tag && (
+                              <>
+                                 <div className="w-[70px]">
+                                    <label className="block text-[10px] text-slate-500 mb-1">{dict.paramUnit || 'Unit'}</label>
+                                    <input 
+                                      type="text" 
+                                      value={param.unit || ''} 
+                                      onChange={e => handleParamChange(realIdx, 'unit', e.target.value)}
+                                      className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white"
+                                    />
+                                 </div>
+                                 <div className="w-[70px]">
+                                    <label className="block text-[10px] text-slate-500 mb-1">{dict.paramMin || 'Min'}</label>
+                                    <input 
+                                      type="number" 
+                                      value={param.min_value} 
+                                      onChange={e => handleParamChange(realIdx, 'min_value', parseFloat(e.target.value))}
+                                      className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white"
+                                    />
+                                 </div>
+                                 <div className="w-[70px]">
+                                    <label className="block text-[10px] text-slate-500 mb-1">{dict.paramMax || 'Max'}</label>
+                                    <input 
+                                      type="number" 
+                                      value={param.max_value} 
+                                      onChange={e => handleParamChange(realIdx, 'max_value', parseFloat(e.target.value))}
+                                      className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white"
+                                    />
+                                 </div>
+                                 <div className="w-[110px]">
+                                    <label className="block text-[10px] text-slate-500 mb-1">{dict.paramGenMode || 'Mode'}</label>
+                                    <select 
+                                       value={param.generation_mode}
+                                       onChange={e => handleParamChange(realIdx, 'generation_mode', e.target.value)}
+                                       className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white"
+                                    >
+                                       {Object.values(GenerationMode).map(m => <option key={m} value={m}>{m}</option>)}
+                                    </select>
+                                 </div>
+                              </>
+                           )}
+                           
+                           <button onClick={() => removeParam(realIdx)} className="p-1.5 text-slate-500 hover:text-red-400 mb-0.5">
                               <Trash2 size={16} />
                            </button>
                         </div>
-                     ))}
+                     )})}
                      {(!category.parameters || category.parameters.length === 0) && (
                         <div className="text-center py-8 text-slate-600 italic">{dict.noParams || 'No parameters defined'}</div>
                      )}

@@ -112,6 +112,8 @@ def create_category(category: Category, db: Session = Depends(get_db)):
             # Use category code as super table name
             tdengine_service.create_super_table(category.code, category.parameters)
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             print(f"Warning: Failed to create TDengine super table for {category.code}: {e}")
 
     return Category(

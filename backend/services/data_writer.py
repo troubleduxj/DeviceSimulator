@@ -86,10 +86,42 @@ class DataWriter:
                 # 1. 如果TDengine启用且连接成功，写入TDengine
                 if tdengine_connected:
                     try:
-                        # 确保表存在 (可以优化为缓存)
-                        tdengine_service.create_table_for_device(device)
-                        # 写入数据
-                        tdengine_service.insert_data(device.id, data)
+                        # Filter out TAGS from data payload for TDengine insertion
+                        # TDengine does not allow inserting values for TAGS via INSERT
+                        td_data = data.copy()
+                        td_data["data"] = {}
+                        
+                        tag_ids = set()
+                        for p in device.parameters:
+                            # Check is_tag (Pydantic model or dict)
+                            is_tag = False
+                            if isinstance(p, dict):
+                                is_tag = p.get('is_tag', False)
+                            elif hasattr(p, 'is_tag'):
+                                is_tag = p.is_tag
+                            
+                            if is_tag:
+                                p_id = p.get('id') if isinstance(p, dict) else p.id
+                                if p_id: tag_ids.add(p_id)
+                        
+                        # Also add standard tags to exclusion list
+                        tag_ids.add('device_id')
+                        tag_ids.add('device_name')
+                        tag_ids.add('device_model')
+
+                        for k, v in data["data"].items():
+                            if k not in tag_ids:
+                                td_data["data"][k] = v
+                        
+                        # Only insert if there are metrics (columns) to insert
+                        if td_data["data"]:
+                            # 确保表存在 (仅在必要时，且应由DeviceService管理)
+                            # tdengine_service.create_table_for_device(device) 
+                            # Commented out: Table creation should be handled by DeviceService to support Super Tables correctly.
+                            # Calling create_table_for_device here might try to create a normal table with Tags as Columns, which is wrong.
+                            
+                            # 写入数据
+                            tdengine_service.insert_data(device.id, td_data)
                     except Exception as e:
                         print(f"设备 {device.name} 数据写入TDengine失败: {e}")
                 

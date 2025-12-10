@@ -27,7 +27,8 @@ export interface BackendParameter {
   default_value?: any;
   generation_mode: GenerationMode;
   generation_params?: Record<string, any>;
-  error_config?: Record<string, any>; // Added error_config
+  error_config?: Record<string, any>;
+  is_tag?: boolean; // TDengine: true for TAG, false for COLUMN
 }
 
 export interface BackendDevice {
@@ -78,6 +79,7 @@ export interface TDengineConfig {
   password?: string;
   database?: string;
   enabled: boolean;
+  subtable_name_template?: string;
 }
 
 export interface SystemStatus {
@@ -236,6 +238,16 @@ export const backendService = {
     return await response.json();
   },
 
+  async fetchTDengineInfo(): Promise<any> {
+      try {
+        const response = await fetch(`${API_BASE}/system/tdengine/info`);
+        if (!response.ok) return null;
+        return await response.json();
+      } catch (e) {
+          return null;
+      }
+  },
+
   // Fetch all devices and map to frontend Device type
   async fetchDevices(): Promise<Device[]> {
     try {
@@ -335,6 +347,53 @@ export const backendService = {
     await fetch(`${API_BASE}/device/${deviceId}/status/${status}`, {
       method: 'PATCH'
     });
+  },
+
+  async deleteDeviceData(deviceId: string, start_time?: string, end_time?: string): Promise<void> {
+    let url = `${API_BASE}/data/devices/${deviceId}/data`;
+    const params = new URLSearchParams();
+    if (start_time) params.append('start_time', start_time);
+    if (end_time) params.append('end_time', end_time);
+    
+    if (params.toString()) {
+        url += `?${params.toString()}`;
+    }
+
+    const response = await fetch(url, {
+      method: 'DELETE'
+    });
+    if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.detail || 'Failed to delete device data');
+    }
+  },
+
+  async getDeviceDataRange(deviceId: string): Promise<{start_time: string, end_time: string} | null> {
+    try {
+        const response = await fetch(`${API_BASE}/data/devices/${deviceId}/range`);
+        if (!response.ok) return null;
+        return await response.json();
+    } catch (e) {
+        return null;
+    }
+  },
+
+  async generateHistoryData(deviceId: string, startTime: string, endTime: string, intervalMs?: number, cleanExisting?: boolean): Promise<any> {
+    const response = await fetch(`${API_BASE}/data/devices/${deviceId}/generate-history`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        start_time: startTime,
+        end_time: endTime,
+        interval_ms: intervalMs,
+        clean_existing: cleanExisting
+      })
+    });
+    if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.detail || 'Failed to generate history data');
+    }
+    return await response.json();
   },
 
   // Fetch latest data for a device
