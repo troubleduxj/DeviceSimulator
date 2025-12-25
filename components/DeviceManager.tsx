@@ -27,6 +27,7 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({ onClose, onNavigat
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [filterName, setFilterName] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
+  const [filterStatus, setFilterStatus] = useState('All');
   const [deviceData, setDeviceData] = useState<Record<string, SimulationStep>>({});
   const [selectedDeviceIds, setSelectedDeviceIds] = useState<Set<string>>(new Set());
   const [isSelectMode, setIsSelectMode] = useState(false);
@@ -45,7 +46,7 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({ onClose, onNavigat
   const cardClass = isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200 shadow-sm';
   const hoverClass = isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-100';
   const headerBgClass = isDark ? 'bg-slate-900' : 'bg-slate-50';
-  const selectedClass = isDark ? 'bg-blue-900/20 border-blue-500' : 'bg-blue-50 border-blue-500';
+  const selectedClass = isDark ? 'bg-purple-900/20 border-purple-500' : 'bg-purple-50 border-purple-500';
 
   // Compute unique types from devices to ensure all are filterable
   const uniqueTypes = Array.from(new Set(devices.map(d => d.type))).sort();
@@ -56,7 +57,8 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({ onClose, onNavigat
   const filteredDevices = devices.filter(d => {
       const matchesName = d.name.toLowerCase().includes(filterName.toLowerCase());
       const matchesCategory = filterCategory ? d.type === filterCategory : true;
-      return matchesName && matchesCategory;
+      const matchesStatus = filterStatus === 'All' ? true : d.status === filterStatus;
+      return matchesName && matchesCategory && matchesStatus;
   });
 
   const fetchData = async () => {
@@ -360,7 +362,7 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({ onClose, onNavigat
       {/* Header */}
       <div className={`p-4 border-b ${borderClass} flex justify-between items-center ${headerBgClass}`}>
         <h2 className={`text-xl font-bold ${textPrimary} flex items-center gap-2`}>
-          <Settings className="text-blue-500" />
+          <Settings className="text-purple-500" />
           {dict.deviceManagement}
           <span className={`text-sm font-normal ${textSecondary} ml-2`}>
             ({filteredDevices.length} / {devices.length})
@@ -396,7 +398,7 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({ onClose, onNavigat
                     {dict.cancel}
                   </button>
               </div>
-          ) : (
+            ) : (
               <button 
                 onClick={() => setIsSelectMode(true)}
                 className={`flex items-center gap-2 ${bgSubClass} ${hoverClass} ${textSecondary} hover:${textPrimary} px-3 py-2 rounded text-sm transition-colors border ${borderClass}`}
@@ -442,7 +444,7 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({ onClose, onNavigat
 
           <button 
             onClick={openCreate}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded text-sm font-bold transition-colors"
+            className="flex items-center gap-2 bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded text-sm font-bold transition-colors"
           >
             <Plus size={16} />
             {dict.newDevice}
@@ -453,12 +455,12 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({ onClose, onNavigat
       {/* Filters */}
       <div className={`p-4 border-b ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-slate-100'} flex flex-wrap gap-4 items-center`}>
         {isSelectMode && (
-             <div className={`flex items-center gap-3 ${isDark ? 'bg-slate-900' : 'bg-white'} px-3 py-2 rounded-full border border-blue-500/30`}>
+             <div className={`flex items-center gap-3 ${isDark ? 'bg-slate-900' : 'bg-white'} px-3 py-2 rounded-full border border-purple-500/30`}>
                 <input 
                     type="checkbox" 
                     checked={selectedDeviceIds.size === filteredDevices.length && filteredDevices.length > 0}
                     onChange={handleSelectAll}
-                    className={`w-4 h-4 rounded ${isDark ? 'border-slate-600 bg-slate-800' : 'border-slate-300 bg-white'} text-blue-600 focus:ring-blue-500 cursor-pointer`}
+                    className={`w-4 h-4 rounded ${isDark ? 'border-slate-600 bg-slate-800' : 'border-slate-300 bg-white'} text-purple-600 focus:ring-purple-500 cursor-pointer`}
                 />
                 <span className={`text-sm ${textPrimary} font-medium`}>
                     {selectedDeviceIds.size === filteredDevices.length ? (dict.deselectAll || 'Deselect All') : (dict.selectAll || 'Select All')}
@@ -472,7 +474,7 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({ onClose, onNavigat
                 value={filterName}
                 onChange={e => setFilterName(e.target.value)}
                 placeholder={dict.searchDevice || "Search devices..."}
-                className={`w-full ${inputBgClass} border ${borderClass} rounded-full pl-10 pr-4 py-2 text-sm ${textPrimary} focus:border-blue-500 outline-none`}
+                className={`w-full ${inputBgClass} border ${borderClass} rounded-full pl-10 pr-4 py-2 text-sm ${textPrimary} focus:border-purple-500 outline-none`}
             />
         </div>
         <div className="relative min-w-[200px]">
@@ -480,7 +482,7 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({ onClose, onNavigat
             <select 
                 value={filterCategory}
                 onChange={e => setFilterCategory(e.target.value)}
-                className={`w-full ${inputBgClass} border ${borderClass} rounded-full pl-10 pr-8 py-2 text-sm ${textPrimary} focus:border-blue-500 outline-none appearance-none`}
+                className={`w-full ${inputBgClass} border ${borderClass} rounded-full pl-10 pr-8 py-2 text-sm ${textPrimary} focus:border-purple-500 outline-none appearance-none`}
             >
                 <option value="">{dict.allCategories || "All Categories"}</option>
                 {categories.map(c => (
@@ -493,6 +495,18 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({ onClose, onNavigat
                         ))}
                     </optgroup>
                 )}
+            </select>
+        </div>
+        <div className="relative min-w-[150px]">
+            <Activity className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+            <select 
+                value={filterStatus}
+                onChange={e => setFilterStatus(e.target.value)}
+                className={`w-full ${inputBgClass} border ${borderClass} rounded-full pl-10 pr-8 py-2 text-sm ${textPrimary} focus:border-purple-500 outline-none appearance-none`}
+            >
+                <option value="All">{dict.allStatus || "All Status"}</option>
+                <option value="running">{dict.running || "Running"}</option>
+                <option value="stopped">{dict.stopped || "Stopped"}</option>
             </select>
         </div>
       </div>
@@ -515,7 +529,7 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({ onClose, onNavigat
                         type="checkbox" 
                         checked={selectedDeviceIds.has(device.id)}
                         onChange={() => toggleSelectDevice(device.id)}
-                        className={`w-5 h-5 rounded ${isDark ? 'border-slate-600 bg-slate-900' : 'border-slate-300 bg-white'} text-blue-600 focus:ring-blue-500 cursor-pointer`}
+                        className={`w-5 h-5 rounded ${isDark ? 'border-slate-600 bg-slate-900' : 'border-slate-300 bg-white'} text-purple-600 focus:ring-purple-500 cursor-pointer`}
                         onClick={(e) => e.stopPropagation()}
                       />
                   </div>
@@ -589,7 +603,7 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({ onClose, onNavigat
                   {onPreview && (
                     <button 
                         onClick={(e) => { e.stopPropagation(); onPreview(device.id); }} 
-                        className={`p-1.5 text-sky-400 hover:bg-sky-900/30 rounded ${hoverClass}`}
+                        className={`p-1.5 text-fuchsia-400 hover:bg-fuchsia-900/30 rounded ${hoverClass}`}
                         title={dict.preview || "Preview"}
                     >
                         <Eye size={16} />
@@ -607,7 +621,7 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({ onClose, onNavigat
                     </button>
                   )}
 
-                  <button onClick={(e) => { e.stopPropagation(); openEdit(device); }} className={`p-1.5 text-blue-400 hover:bg-blue-900/30 rounded ${hoverClass}`}>
+                  <button onClick={(e) => { e.stopPropagation(); openEdit(device); }} className={`p-1.5 text-violet-400 hover:bg-violet-900/30 rounded ${hoverClass}`}>
                     <Edit size={16} />
                   </button>
                   <button onClick={(e) => { e.stopPropagation(); setGeneratingDevice(device); }} className={`p-1.5 text-purple-400 hover:bg-purple-900/30 rounded ${hoverClass}`} title={dict.generateData || 'Generate History'}>
@@ -744,7 +758,7 @@ const CleanupModal: React.FC<CleanupModalProps> = ({ device, onConfirm, onCancel
                     <div className={`text-sm ${textSub} mb-4`}>
                         Cleaning data for device: <span className={`${textMain} font-bold`}>{device.name}</span>
                         {dataRange && (
-                            <div className={`mt-2 text-xs ${isDark ? 'bg-blue-900/30 border-blue-900/50 text-blue-200' : 'bg-blue-50 border-blue-200 text-blue-800'} border p-2 rounded`}>
+                            <div className={`mt-2 text-xs ${isDark ? 'bg-purple-900/30 border-purple-900/50 text-purple-200' : 'bg-purple-50 border-purple-200 text-purple-800'} border p-2 rounded`}>
                                 <div className="font-bold opacity-70 mb-1">Available Data Range (Server Time):</div>
                                 <div className="font-mono">
                                     {new Date(dataRange.start_time).toLocaleString()} <br/>
@@ -756,26 +770,26 @@ const CleanupModal: React.FC<CleanupModalProps> = ({ device, onConfirm, onCancel
                     </div>
 
                     <div className="space-y-2">
-                        <label className={`flex items-center gap-3 p-3 rounded border ${itemBorder} ${cardBg} cursor-pointer hover:border-blue-500 transition-colors`}>
+                        <label className={`flex items-center gap-3 p-3 rounded border ${itemBorder} ${cardBg} cursor-pointer hover:border-purple-500 transition-colors`}>
                             <input 
                                 type="radio" 
                                 name="cleanupMode" 
                                 value="all" 
                                 checked={mode === 'all'} 
                                 onChange={() => setMode('all')}
-                                className={`w-4 h-4 text-blue-500 focus:ring-blue-500 ${isDark ? 'bg-slate-700 border-slate-600' : 'bg-white border-gray-300'}`}
+                                className={`w-4 h-4 text-purple-500 focus:ring-purple-500 ${isDark ? 'bg-slate-700 border-slate-600' : 'bg-white border-gray-300'}`}
                             />
                             <span className={`${textMain} font-medium`}>{dict.cleanAll || 'Clean All History'}</span>
                         </label>
 
-                        <label className={`flex items-center gap-3 p-3 rounded border ${itemBorder} ${cardBg} cursor-pointer hover:border-blue-500 transition-colors`}>
+                        <label className={`flex items-center gap-3 p-3 rounded border ${itemBorder} ${cardBg} cursor-pointer hover:border-purple-500 transition-colors`}>
                             <input 
                                 type="radio" 
                                 name="cleanupMode" 
                                 value="range" 
                                 checked={mode === 'range'} 
                                 onChange={() => setMode('range')}
-                                className={`w-4 h-4 text-blue-500 focus:ring-blue-500 ${isDark ? 'bg-slate-700 border-slate-600' : 'bg-white border-gray-300'}`}
+                                className={`w-4 h-4 text-purple-500 focus:ring-purple-500 ${isDark ? 'bg-slate-700 border-slate-600' : 'bg-white border-gray-300'}`}
                             />
                             <span className={`${textMain} font-medium`}>{dict.cleanRange || 'Clean Time Range'}</span>
                         </label>
@@ -789,7 +803,7 @@ const CleanupModal: React.FC<CleanupModalProps> = ({ device, onConfirm, onCancel
                                     type="datetime-local" 
                                     value={startTime}
                                     onChange={e => setStartTime(e.target.value)}
-                                    className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-blue-500 outline-none text-sm`}
+                                    className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-purple-500 outline-none text-sm`}
                                 />
                             </div>
                             <div>
@@ -798,7 +812,7 @@ const CleanupModal: React.FC<CleanupModalProps> = ({ device, onConfirm, onCancel
                                     type="datetime-local" 
                                     value={endTime}
                                     onChange={e => setEndTime(e.target.value)}
-                                    className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-blue-500 outline-none text-sm`}
+                                    className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-purple-500 outline-none text-sm`}
                                 />
                             </div>
                         </div>
@@ -893,7 +907,7 @@ const GenerateModal: React.FC<GenerateModalProps> = ({ device, onConfirm, onCanc
                                 type="datetime-local" 
                                 value={startTime}
                                 onChange={e => setStartTime(e.target.value)}
-                                className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-blue-500 outline-none text-sm`}
+                                className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-purple-500 outline-none text-sm`}
                             />
                         </div>
                         <div>
@@ -902,7 +916,7 @@ const GenerateModal: React.FC<GenerateModalProps> = ({ device, onConfirm, onCanc
                                 type="datetime-local" 
                                 value={endTime}
                                 onChange={e => setEndTime(e.target.value)}
-                                className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-blue-500 outline-none text-sm`}
+                                className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-purple-500 outline-none text-sm`}
                             />
                         </div>
                         <div>
@@ -912,7 +926,7 @@ const GenerateModal: React.FC<GenerateModalProps> = ({ device, onConfirm, onCanc
                                 value={interval}
                                 onChange={e => setInterval(e.target.value === '' ? '' : parseInt(e.target.value))}
                                 placeholder={device.sampling_rate.toString()}
-                                className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-blue-500 outline-none text-sm`}
+                                className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-purple-500 outline-none text-sm`}
                             />
                             <p className={`text-[10px] ${textSub} mt-1`}>Leave empty to use device default ({device.sampling_rate}ms)</p>
                         </div>
@@ -1046,11 +1060,11 @@ const DeviceForm: React.FC<DeviceFormProps> = ({ device: initialDevice, categori
   const textSubDarker = isDark ? 'text-slate-500' : 'text-gray-400';
   const inputBg = isDark ? 'bg-slate-800' : 'bg-gray-50';
   const inputBorder = isDark ? 'border-slate-700' : 'border-gray-300';
-  const tabActive = isDark ? 'text-blue-400 border-b-2 border-blue-400 bg-slate-800/50' : 'text-blue-600 border-b-2 border-blue-600 bg-blue-50';
+  const tabActive = isDark ? 'text-purple-400 border-b-2 border-purple-400 bg-slate-800/50' : 'text-purple-600 border-b-2 border-purple-600 bg-purple-50';
   const tabInactive = isDark ? 'text-slate-400 hover:text-white' : 'text-gray-500 hover:text-gray-900';
 
   const [device, setDevice] = useState(initialDevice);
-  const [activeTab, setActiveTab] = useState<'basic' | 'params' | 'advanced'>('basic');
+  const [activeTab, setActiveTab] = useState<'basic' | 'params' | 'advanced' | 'scenarios'>('basic');
 
   const handleTypeChange = (newType: string) => {
       setDevice({ ...device, type: newType });
@@ -1148,6 +1162,37 @@ const DeviceForm: React.FC<DeviceFormProps> = ({ device: initialDevice, categori
     setDevice({ ...device, parameters: newParams });
   };
 
+  const handleImportScenario = (scenarioName: string) => {
+    const category = categories.find(c => c.code === device.type);
+    if (!category) return;
+    
+    const config = category.scenario_configs?.[scenarioName];
+    // Even if config is missing, we might want to allow importing the name if it's a "standard" scenario? 
+    // But usually we need the config.
+    // If config is missing, maybe it's just a placeholder.
+    
+    setDevice(prev => ({
+        ...prev,
+        scenarios: [...(prev.scenarios || []), scenarioName],
+        scenario_configs: {
+            ...(prev.scenario_configs || {}),
+            [scenarioName]: config || { name: scenarioName, parameter_updates: [] }
+        }
+    }));
+  };
+
+  const handleDeleteScenario = (scenarioName: string) => {
+    setDevice(prev => {
+        const newConfigs = { ...(prev.scenario_configs || {}) };
+        delete newConfigs[scenarioName];
+        return {
+            ...prev,
+            scenarios: (prev.scenarios || []).filter(s => s !== scenarioName),
+            scenario_configs: newConfigs
+        };
+    });
+  };
+
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
       <div className={`${bgModal} border ${borderMain} rounded-lg w-full max-w-6xl max-h-[90vh] flex flex-col shadow-2xl`}>
@@ -1179,6 +1224,12 @@ const DeviceForm: React.FC<DeviceFormProps> = ({ device: initialDevice, categori
             >
                 {dict.advancedAndErrors}
             </button>
+            <button 
+                className={`px-6 py-3 text-sm font-bold transition-colors ${activeTab === 'scenarios' ? tabActive : tabInactive}`}
+                onClick={() => setActiveTab('scenarios')}
+            >
+                {dict.scenarios || 'Scenarios'} ({device.scenarios?.length || 0})
+            </button>
         </div>
 
         {/* Content */}
@@ -1191,7 +1242,7 @@ const DeviceForm: React.FC<DeviceFormProps> = ({ device: initialDevice, categori
                     type="text" 
                     value={device.name}
                     onChange={e => setDevice({...device, name: e.target.value})}
-                    className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-blue-500 outline-none`}
+                    className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-purple-500 outline-none`}
                  />
                </div>
                <div>
@@ -1199,7 +1250,7 @@ const DeviceForm: React.FC<DeviceFormProps> = ({ device: initialDevice, categori
                  <select 
                     value={device.type}
                     onChange={e => handleTypeChange(e.target.value)}
-                    className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-blue-500 outline-none`}
+                    className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-purple-500 outline-none`}
                  >
                     {categories.length > 0 ? (
                       categories.map(c => <option key={c.id} value={c.code}>{c.name} ({c.code})</option>)
@@ -1219,7 +1270,7 @@ const DeviceForm: React.FC<DeviceFormProps> = ({ device: initialDevice, categori
                  <textarea 
                     value={device.description}
                     onChange={e => setDevice({...device, description: e.target.value})}
-                    className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-blue-500 outline-none h-24`}
+                    className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-purple-500 outline-none h-24`}
                  />
                </div>
                <div>
@@ -1228,7 +1279,7 @@ const DeviceForm: React.FC<DeviceFormProps> = ({ device: initialDevice, categori
                     type="number" 
                     value={device.sampling_rate}
                     onChange={e => setDevice({...device, sampling_rate: parseInt(e.target.value)})}
-                    className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-blue-500 outline-none`}
+                    className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-purple-500 outline-none`}
                  />
                </div>
                
@@ -1244,7 +1295,7 @@ const DeviceForm: React.FC<DeviceFormProps> = ({ device: initialDevice, categori
                     {device.id && (
                         <button 
                             onClick={() => navigator.clipboard.writeText(`device_${device.id}`)}
-                            className={`absolute right-2 top-2 ${textSub} hover:text-blue-400`}
+                            className={`absolute right-2 top-2 ${textSub} hover:text-purple-400`}
                             title="Copy to clipboard"
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
@@ -1260,7 +1311,7 @@ const DeviceForm: React.FC<DeviceFormProps> = ({ device: initialDevice, categori
             <div className="space-y-3">
                  <div className="flex justify-between items-center mb-4">
                      <div className={`text-sm ${textSub}`}>{dict.defineMetrics}</div>
-                     <button onClick={addParam} className={`flex items-center gap-1 text-xs ${isDark ? 'bg-slate-800 hover:bg-slate-700' : 'bg-white hover:bg-gray-100'} text-blue-400 px-3 py-1.5 rounded border ${borderMain}`}>
+                     <button onClick={addParam} className={`flex items-center gap-1 text-xs ${isDark ? 'bg-slate-800 hover:bg-slate-700' : 'bg-white hover:bg-gray-100'} text-purple-400 px-3 py-1.5 rounded border ${borderMain}`}>
                         <Plus size={14}/> {dict.addParameter}
                      </button>
                  </div>
@@ -1343,7 +1394,7 @@ const DeviceForm: React.FC<DeviceFormProps> = ({ device: initialDevice, categori
                           <select 
                              value={param.is_tag ? 'tag' : 'column'}
                              onChange={e => handleParamChange(idx, 'is_tag', e.target.value === 'tag')}
-                             className={`w-full border rounded px-2 py-1 text-sm font-bold ${param.is_tag ? (isDark ? 'bg-amber-900/50 border-amber-600 text-amber-300' : 'bg-amber-100 border-amber-300 text-amber-700') : (isDark ? 'bg-blue-900/50 border-blue-600 text-blue-300' : 'bg-blue-100 border-blue-300 text-blue-700')}`}
+                             className={`w-full border rounded px-2 py-1 text-sm font-bold ${param.is_tag ? (isDark ? 'bg-amber-900/50 border-amber-600 text-amber-300' : 'bg-amber-100 border-amber-300 text-amber-700') : (isDark ? 'bg-purple-900/50 border-purple-600 text-purple-300' : 'bg-purple-100 border-purple-300 text-purple-700')}`}
                           >
                              <option value="column">{dict.tagColumn || 'Column'}</option>
                              <option value="tag">{dict.tagTag || 'Tag'}</option>
@@ -1477,7 +1528,7 @@ const DeviceForm: React.FC<DeviceFormProps> = ({ device: initialDevice, categori
                 <div className="space-y-4">
                     {(device.parameters || []).filter(p => p.type === ParameterType.NUMBER).map((param, idx) => (
                         <div key={idx} className={`${isDark ? 'bg-slate-800/30' : 'bg-gray-50'} p-4 rounded border ${borderMain}`}>
-                            <div className="font-bold text-blue-400 mb-2">{param.name}</div>
+                            <div className="font-bold text-purple-400 mb-2">{param.name}</div>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
                                     <label className={`block text-[10px] ${textSubDarker} mb-1`}>{dict.driftRate || 'Drift Rate'}</label>
@@ -1533,6 +1584,117 @@ const DeviceForm: React.FC<DeviceFormProps> = ({ device: initialDevice, categori
                         <div className={`text-slate-500 italic text-sm`}>{dict.noNumericParams}</div>
                     )}
                 </div>
+
+                {/* Logic Rules */}
+                <h4 className={`${textMain} font-bold mb-4 mt-6`}>{dict.logicRules || 'Logic Rules'}</h4>
+                <div className="space-y-2 mb-4">
+                    <div className="flex gap-2 text-[10px] text-slate-500 uppercase font-bold mb-1">
+                        <div className="flex-1">Condition</div>
+                        <div className="w-6"></div>
+                        <div className="flex-1">Action</div>
+                        <div className="w-8"></div>
+                    </div>
+                    {(device.logic_rules || []).map((rule, idx) => (
+                        <div key={idx} className="flex gap-2 items-center">
+                            <div className="flex-1">
+                                <input 
+                                    type="text" 
+                                    value={rule.condition}
+                                    onChange={e => handleRuleChange(idx, 'condition', e.target.value)}
+                                    className={`w-full ${inputBg} border ${inputBorder} rounded px-2 py-1 text-sm ${textMain} font-mono`}
+                                    placeholder="e.g. temperature > 100"
+                                />
+                            </div>
+                            <div className="text-slate-500">→</div>
+                            <div className="flex-1">
+                                <input 
+                                    type="text" 
+                                    value={rule.action}
+                                    onChange={e => handleRuleChange(idx, 'action', e.target.value)}
+                                    className={`w-full ${inputBg} border ${inputBorder} rounded px-2 py-1 text-sm ${textMain} font-mono`}
+                                    placeholder="e.g. status = 'error'"
+                                />
+                            </div>
+                            <button onClick={() => handleRemoveRule(idx)} className="p-1.5 text-slate-500 hover:text-red-400">
+                                <Trash2 size={16} />
+                            </button>
+                        </div>
+                    ))}
+                    <button onClick={handleAddRule} className={`flex items-center gap-1 text-xs ${isDark ? 'bg-slate-800 hover:bg-slate-700' : 'bg-white hover:bg-gray-100'} text-purple-400 px-3 py-1.5 rounded border ${borderMain} mt-2`}>
+                        <Plus size={14}/> {dict.addRule || 'Add Rule'}
+                    </button>
+                </div>
+            </div>
+          )}
+
+          {activeTab === 'scenarios' && (
+            <div className="space-y-4">
+                <div className={`p-4 rounded border ${isDark ? 'bg-slate-900/30 border-slate-700' : 'bg-blue-50 border-blue-200'}`}>
+                    <div className="flex items-start gap-3">
+                        <div className={`p-2 rounded-full ${isDark ? 'bg-slate-800' : 'bg-white'}`}>
+                            <Sparkles size={18} className="text-purple-500" />
+                        </div>
+                        <div>
+                            <h4 className={`text-sm font-bold ${textMain} mb-1`}>{dict.manageScenarios || 'Manage Device Scenarios'}</h4>
+                            <p className={`text-xs ${textSub}`}>
+                                {dict.deviceScenarioDesc || 'Scenarios defined here are specific to this device. You can import scenarios from the category or create new ones.'}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Available from Category */}
+                    <div className={`${isDark ? 'bg-slate-800/50' : 'bg-white'} rounded border ${borderMain} p-4`}>
+                        <h5 className={`text-xs font-bold ${textSub} uppercase mb-3`}>{dict.availableFromCategory || 'Available from Category'}</h5>
+                        <div className="space-y-2">
+                            {categories.find(c => c.code === device.type)?.scenarios?.filter(s => !(device.scenarios || []).includes(s)).map(s => (
+                                <div key={s} className={`flex justify-between items-center p-2 rounded border ${borderMain} ${isDark ? 'bg-slate-900' : 'bg-slate-50'}`}>
+                                    <span className={`text-sm ${textMain}`}>{s}</span>
+                                    <button 
+                                        onClick={() => handleImportScenario(s)}
+                                        className="text-xs px-2 py-1 bg-purple-600 text-white rounded hover:bg-purple-500 transition-colors"
+                                    >
+                                        {dict.import || 'Import'}
+                                    </button>
+                                </div>
+                            ))}
+                            {(!categories.find(c => c.code === device.type)?.scenarios?.length || categories.find(c => c.code === device.type)?.scenarios?.every(s => (device.scenarios || []).includes(s))) && (
+                                <div className={`text-xs ${textSub} text-center py-4 italic`}>
+                                    {dict.noScenariosAvailable || 'No new scenarios available from category.'}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Current Scenarios */}
+                    <div className={`${isDark ? 'bg-slate-800/50' : 'bg-white'} rounded border ${borderMain} p-4`}>
+                        <h5 className={`text-xs font-bold ${textSub} uppercase mb-3`}>{dict.currentScenarios || 'Current Scenarios'}</h5>
+                        <div className="space-y-2">
+                            {(device.scenarios || []).map(s => (
+                                <div key={s} className={`flex justify-between items-center p-2 rounded border ${borderMain} ${isDark ? 'bg-slate-900' : 'bg-slate-50'}`}>
+                                    <div className="flex items-center gap-2">
+                                        <span className={`text-sm ${textMain} font-bold`}>{s}</span>
+                                        {categories.find(c => c.code === device.type)?.scenarios?.includes(s) && (
+                                            <span className="text-[10px] px-1.5 rounded bg-slate-700 text-slate-300" title="Linked to Category">Linked</span>
+                                        )}
+                                    </div>
+                                    <button 
+                                        onClick={() => handleDeleteScenario(s)}
+                                        className="text-slate-500 hover:text-red-400 p-1"
+                                    >
+                                        <Trash2 size={14} />
+                                    </button>
+                                </div>
+                            ))}
+                            {(device.scenarios || []).length === 0 && (
+                                <div className={`text-xs ${textSub} text-center py-4 italic`}>
+                                    {dict.noScenariosConfigured || 'No scenarios configured.'}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
             </div>
           )}
         </div>
@@ -1543,7 +1705,7 @@ const DeviceForm: React.FC<DeviceFormProps> = ({ device: initialDevice, categori
           <button 
             onClick={() => onSave(device)}
             disabled={!device.name || !device.type}
-            className="flex items-center gap-2 px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold transition-colors shadow-lg shadow-blue-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-6 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded font-bold transition-colors shadow-lg shadow-purple-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Save size={16} /> {dict.saveDevice}
           </button>

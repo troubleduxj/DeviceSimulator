@@ -132,12 +132,12 @@ export const DeviceMonitorView: React.FC<DeviceMonitorViewProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full overflow-hidden gap-3">
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden gap-3">
         {/* --- Header Section --- */}
         <header className={`shrink-0 ${headerClass} rounded-lg p-3 flex items-center justify-between backdrop-blur-md border`}>
             {/* Left: Device Info */}
             <div className="flex items-center gap-4">
-                <div className="p-2 bg-blue-500/10 rounded-lg border border-blue-500/20 text-blue-400">
+                <div className="p-2 bg-purple-500/10 rounded-lg border border-purple-500/20 text-purple-400">
                     {getDeviceIcon(activeDevice.type)}
                 </div>
                 <div>
@@ -176,7 +176,7 @@ export const DeviceMonitorView: React.FC<DeviceMonitorViewProps> = ({
                 {/* AI Scenario Button */}
                 <button 
                     onClick={() => setIsScenarioModalOpen(true)}
-                    className={`p-1.5 rounded border ${isDark ? 'bg-indigo-500/10 border-indigo-500/50 text-indigo-400' : 'bg-indigo-50 border-indigo-200 text-indigo-600'} hover:bg-indigo-500 hover:text-white transition-colors`}
+                    className={`p-1.5 rounded border ${isDark ? 'bg-purple-500/10 border-purple-500/50 text-purple-400' : 'bg-purple-50 border-purple-200 text-purple-600'} hover:bg-purple-500 hover:text-white transition-colors`}
                     title="AI Create Scenario"
                 >
                     <Sparkles size={16} />
@@ -205,7 +205,7 @@ export const DeviceMonitorView: React.FC<DeviceMonitorViewProps> = ({
                 {/* 3D Digital Twin */}
                 <div className={`flex-[3] ${cardClass} rounded-lg border overflow-hidden relative group`}>
                     <div className="absolute top-3 left-3 z-10 bg-black/40 backdrop-blur px-2 py-1 rounded text-xs font-bold text-slate-300 flex items-center gap-2 border border-white/10">
-                        <Box size={14} className="text-blue-400" /> {dict.digitalTwin}
+                        <Box size={14} className="text-purple-400" /> {dict.digitalTwin}
                     </div>
                     <DigitalTwin 
                         device={activeDevice}
@@ -268,7 +268,7 @@ export const DeviceMonitorView: React.FC<DeviceMonitorViewProps> = ({
                                         <div className="flex items-center gap-2">
                                             <div className={`w-16 h-1 ${barBg} rounded overflow-hidden`}>
                                                 <div 
-                                                    className="h-full bg-blue-500/50 transition-all duration-500"
+                                                    className="h-full bg-purple-500/50 transition-all duration-500"
                                                     style={{ width: `${Math.min(100, (currentVal / metric.max) * 100)}%` }}
                                                 />
                                             </div>
@@ -288,7 +288,7 @@ export const DeviceMonitorView: React.FC<DeviceMonitorViewProps> = ({
                                     </div>
                                     <div className={`w-full h-1 ${barBg} rounded overflow-hidden mt-auto`}>
                                         <div 
-                                            className="h-full bg-blue-500/50 transition-all duration-500"
+                                            className="h-full bg-purple-500/50 transition-all duration-500"
                                             style={{ width: `${Math.min(100, (currentVal / metric.max) * 100)}%` }}
                                         />
                                     </div>
@@ -309,7 +309,7 @@ export const DeviceMonitorView: React.FC<DeviceMonitorViewProps> = ({
                     <div className="space-y-2 text-sm">
                         <div className="flex justify-between">
                             <span className="text-slate-400">{dict.simulationMode}:</span>
-                            <span className="text-blue-400 font-bold">{simulationMode}</span>
+                            <span className="text-purple-400 font-bold">{simulationMode}</span>
                         </div>
                         <div className="flex justify-between">
                             <span className="text-slate-400">{dict.activeDevices}:</span>

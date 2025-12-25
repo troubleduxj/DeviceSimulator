@@ -1,5 +1,6 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { Device, SimulationResponse } from '../types';
+import { backendService } from './backendService';
 
 // Helper to get config
 const getConfig = () => {
@@ -127,6 +128,22 @@ const cleanJson = (text: string) => {
     return text.trim();
 };
 
+// Helper to fetch and interpolate prompt
+const getPromptText = async (key: string, variables: Record<string, any>) => {
+    try {
+        const promptData = await backendService.getPrompt(key);
+        let text = promptData.template;
+        for (const [k, v] of Object.entries(variables)) {
+            // Replace {{key}} with value
+            text = text.replace(new RegExp(`{{${k}}}`, 'g'), String(v));
+        }
+        return text;
+    } catch (error) {
+        console.error(`Failed to fetch prompt '${key}':`, error);
+        throw new Error(`Failed to load prompt template for ${key}`);
+    }
+};
+
 export const testLlmConnection = async (configOverride?: any) => {
     const config = configOverride ? {
         provider: configOverride.provider,
@@ -180,30 +197,18 @@ export const fetchAiSimulationBatch = async (
 ): Promise<SimulationResponse> => {
   const config = getConfig();
 
-  const prompt = `
-    You are a high-fidelity Industrial IoT Physics Engine.
-    Simulate the behavior of a device: "${device.name}" (Type: ${device.type}).
-    Description: ${device.description}
-    
-    Current State: ${device.status.toUpperCase()}
-    Active Scenario: "${device.currentScenario}"
-    
-    Defined Metrics (and limits):
-    ${device.metrics.filter(m => !m.is_tag).map(m => `- ${m.id} (${m.name}): [${m.min} to ${m.max}] ${m.unit}${m.is_integer ? ' (INTEGER ONLY)' : ''}`).join('\n')}
+  const metricsInfo = device.metrics.filter(m => !m.is_tag).map(m => `- ${m.id} (${m.name}): [${m.min} to ${m.max}] ${m.unit}${m.is_integer ? ' (INTEGER ONLY)' : ''}`).join('\n');
+  const lastMetricsStr = JSON.stringify(lastMetrics || {});
 
-    Last Known Metrics: ${JSON.stringify(lastMetrics || {})}
-
-    Task:
-    Generate a BATCH of 5 sequential time steps (representing 1 second each) of telemetry data.
-    The data must follow physics laws (inertia, thermodynamics). 
-    - If status is STOPPED, values should decay to minimums.
-    - If RUNNING, values should reflect the "${device.currentScenario}".
-    - Example: If "Coolant Leak", temp should rise over the 5 steps, pressure might drop.
-    - Add realistic noise/fluctuation.
-    - IMPORTANT: If a metric is marked (INTEGER ONLY), you MUST output an integer value.
-    
-    Output strictly in JSON format matching the schema.
-  `;
+  const prompt = await getPromptText('simulation_batch', {
+      device_name: device.name,
+      device_type: device.type,
+      device_description: device.description,
+      device_status: device.status.toUpperCase(),
+      active_scenario: device.currentScenario,
+      metrics_info: metricsInfo,
+      last_metrics: lastMetricsStr
+  });
 
   try {
     if (config.provider === 'deepseek') {
@@ -260,38 +265,10 @@ export const fetchAiSimulationBatch = async (
 
 export const generateCategorySchema = async (userDescription: string, lang: string = 'zh'): Promise<any> => {
     const config = getConfig();
-    const prompt = `
-      You are an IoT System Architect.
-      Create a detailed Device Category Schema based on this description: "${userDescription}".
-      
-      Requirements:
-      1. 'code' should be snake_case (e.g., diesel_generator).
-      2. 'parameters' should include both Tags (metadata, is_tag=true) and Columns (time-series, is_tag=false).
-      3. Parameter types must be one of: INT, FLOAT, BOOL, STRING, TIMESTAMP.
-      4. Include reasonable min/max values for numeric metrics.
-      5. DO NOT include 'ts' (timestamp) or 'device_code' as they are system auto-generated fields.
-      6. Include 'physics_config' with relevant physical constants (e.g., mass_kg, max_velocity, thermal_capacity).
-      7. Include 'logic_rules' for basic monitoring (e.g., "temp > 100" -> "status = 'error'").
-      8. The 'name' and 'description' fields in the output should be in ${lang === 'zh' ? 'Chinese' : 'English'}.
-      
-      Output strictly JSON matching this format example:
-      {
-        "name": "Diesel Generator",
-        "code": "diesel_gen",
-        "description": "...",
-        "parameters": [
-          { "id": "model_id", "name": "Model ID", "type": "STRING", "is_tag": true },
-          { "id": "rpm", "name": "RPM", "type": "INT", "unit": "rpm", "min_value": 0, "max_value": 3000, "is_tag": false }
-        ],
-        "physics_config": {
-           "mass_kg": 500,
-           "max_rpm": 3000
-        },
-        "logic_rules": [
-           { "condition": "rpm > 2800", "action": "status = 'warning'" }
-        ]
-      }
-    `;
+    const prompt = await getPromptText('category_schema', {
+        user_description: userDescription,
+        lang_name: lang === 'zh' ? 'Chinese' : 'English'
+    });
 
     try {
         if (config.provider === 'deepseek') {
@@ -356,19 +333,11 @@ export const generateSystemReport = async (devices: Device[], stats: any, lang: 
         metrics_count: d.metrics?.length
     }));
 
-    const prompt = `
-      You are an IoT System Administrator.
-      Analyze the following system state and generate a concise health report (in ${lang === 'zh' ? 'Chinese' : 'English'}).
-      
-      System Stats: ${JSON.stringify(stats)}
-      Active Devices: ${JSON.stringify(deviceSummary)}
-      
-      Requirements:
-      1. Summarize overall health.
-      2. Highlight any devices in 'running' state and their scenarios.
-      3. Point out potential risks based on scenarios (e.g. "High Load", "Failure").
-      4. Keep it professional and under 100 words.
-    `;
+    const prompt = await getPromptText('system_report', {
+        stats: JSON.stringify(stats),
+        device_summary: JSON.stringify(deviceSummary),
+        lang_name: lang === 'zh' ? 'Chinese' : 'English'
+    });
 
     try {
         if (config.provider === 'deepseek') {
@@ -407,34 +376,10 @@ export const generateSystemReport = async (devices: Device[], stats: any, lang: 
 
 export const generateBatchDevices = async (userDescription: string, lang: string = 'zh'): Promise<Device[]> => {
     const config = getConfig();
-    const prompt = `
-      You are an IoT System Architect.
-      Generate a batch of IoT Devices based on this request: "${userDescription}".
-      
-      Requirements:
-      1. Output a JSON Array of Device objects.
-      2. 'id' should be unique (e.g., dev_timestamp_index).
-      3. 'name' should be sequential if multiple (e.g., "Temp Sensor 01", "Temp Sensor 02") and in ${lang === 'zh' ? 'Chinese' : 'English'} if appropriate.
-      4. 'type' should be consistent.
-      5. 'metrics' should be appropriate for the device type.
-      6. 'status' should default to 'stopped'.
-      
-      Output strictly JSON matching this structure:
-      [
-        {
-          "id": "dev_123_1",
-          "name": "Sensor 01",
-          "type": "Sensor",
-          "description": "...",
-          "status": "stopped",
-          "currentScenario": "Normal",
-          "scenarios": ["Normal", "High"],
-          "metrics": [
-             {"id": "temp", "name": "Temperature", "unit": "C", "min": 0, "max": 100}
-          ]
-        }
-      ]
-    `;
+    const prompt = await getPromptText('batch_devices', {
+        user_description: userDescription,
+        lang_name: lang === 'zh' ? 'Chinese' : 'English'
+    });
 
     try {
         if (config.provider === 'deepseek') {
@@ -480,36 +425,9 @@ export const generateBatchDevices = async (userDescription: string, lang: string
 
 export const generateVisualModel = async (description: string, lang: string = 'zh'): Promise<any> => {
     const config = getConfig();
-    const prompt = `
-      You are an IoT 3D Model Expert.
-      Create a Visual Model configuration based on this description: "${description}".
-      
-      Requirements:
-      1. 'name': A technical name for the model (e.g., "6-Axis Robot Arm").
-      2. 'type': Choose the most appropriate type from [Generator, Cutter, Custom, GLB, GLTF, OBJ, FBX]. 
-         - If the description matches a standard industrial generator, use 'Generator'.
-         - If it matches a plasma cutter or CNC machine, use 'Cutter'.
-         - If you are generating a custom 'visual_config' (Requirement #5), use 'Custom'.
-         - Otherwise, if it implies a specific 3D file format, use that. 
-         - Default to 'Generic' if unsure.
-      3. 'description': A concise description of the model's appearance and function.
-      4. 'parameters': Suggest relevant parameters (metrics) that this model would display or be controlled by (e.g., joint angles, RPM, temperature).
-         - 'type' should be one of [NUMBER, BOOLEAN, STRING].
-      5. 'visual_config': Generate a JSON structure defining a 3D visual representation using simple primitives (Box, Cylinder, Sphere, Cone).
-         - Format: { "components": [ { "type": "box"|"cylinder"|"sphere"|"cone", "position": [x,y,z], "size": [x,y,z], "color": "hex", "rotation": [x,y,z] } ] }
-         - ALWAYS generate this for 'Custom' type.
-         - Try to approximate the shape of the described device using 2-6 primitives.
-         - Be creative! Use combinations to make it look like the description.
-      
-      Output strictly JSON matching this schema:
-      {
-        "name": string,
-        "type": string,
-        "description": string,
-        "parameters": [ { "id": string, "name": string, "type": string, "unit": string, "min_value": number, "max_value": number, "is_tag": boolean } ],
-        "visual_config": { "components": [ ... ] }
-      }
-    `;
+    const prompt = await getPromptText('visual_model', {
+        description: description
+    });
 
     try {
          // Use Backend Proxy for all requests to avoid CORS and hide keys
@@ -578,21 +496,10 @@ export const generateLogAnalysis = async (logs: any[], lang: string = 'zh'): Pro
         `[${l.statusSeverity.toUpperCase()}] ${l.logMessage} (Metrics: ${JSON.stringify(l.metrics || {})})`
     ).join('\n');
 
-    const prompt = `
-      You are an IoT System Expert.
-      Analyze the following simulation logs and provide a Root Cause Analysis (in ${lang === 'zh' ? 'Chinese' : 'English'}).
-      
-      Logs:
-      ${recentLogs}
-      
-      Requirements:
-      1. Identify any critical errors or warnings.
-      2. Detect patterns (e.g., repeated timeouts, metric spikes).
-      3. Suggest potential root causes (e.g., "Network congestion", "Sensor malfunction").
-      4. Provide actionable recommendations.
-      5. If no errors, confirm system stability.
-      6. Output format: Markdown (bullet points).
-    `;
+    const prompt = await getPromptText('log_analysis', {
+        recent_logs: recentLogs,
+        lang_name: lang === 'zh' ? 'Chinese' : 'English'
+    });
 
     try {
         if (config.provider === 'deepseek') {
@@ -631,34 +538,12 @@ export const generateLogAnalysis = async (logs: any[], lang: string = 'zh'): Pro
 
 export const generateScenarioConfig = async (userDescription: string, deviceName: string, availableParams: {id: string, name: string}[], lang: string = 'zh'): Promise<any> => {
     const config = getConfig();
-    const prompt = `
-      You are an IoT Simulation Expert.
-      Create a detailed Simulation Scenario Configuration based on this description: "${userDescription}".
-      Target Device: ${deviceName}
-      Available Parameters: ${JSON.stringify(availableParams)}
-
-      Requirements:
-      1. 'name': Short, descriptive name (e.g., "Coolant Leak").
-      2. 'description': A detailed narrative description for an AI Simulator to follow. It should describe how metrics change over time.
-      3. 'parameter_updates': Array of parameter modifications for a physics-based engine.
-         - Match 'param_id' to Available Parameters.
-         - 'update_type': One of 'set' (fixed value), 'offset' (add value), 'drift' (gradual change), 'noise' (random fluctuation).
-         - 'drift_rate': Rate of change per second (positive or negative).
-         - 'noise_std_dev': Standard deviation for noise.
-         - 'anomaly_probability': Chance of spikes (0-1).
-         - If user describes a complex behavior like "exponential rise", approximate it with a high 'drift_rate'.
-      4. The 'name' and 'description' fields in the output should be in ${lang === 'zh' ? 'Chinese' : 'English'}.
-      
-      Output strictly JSON matching this structure:
-      {
-        "name": "Coolant Leak",
-        "description": "The coolant pressure drops linearly...",
-        "parameter_updates": [
-           { "param_id": "pressure", "update_type": "drift", "drift_rate": -0.5 },
-           { "param_id": "temp", "update_type": "drift", "drift_rate": 0.2, "noise_std_dev": 1.0 }
-        ]
-      }
-    `;
+    const prompt = await getPromptText('scenario_config', {
+        user_description: userDescription,
+        device_name: deviceName,
+        available_params: JSON.stringify(availableParams),
+        lang_name: lang === 'zh' ? 'Chinese' : 'English'
+    });
 
     try {
         if (config.provider === 'deepseek') {

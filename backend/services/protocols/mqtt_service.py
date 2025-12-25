@@ -4,6 +4,7 @@ import threading
 import time
 from typing import Dict, Any
 from services.config_service import ConfigService
+from utils.logger import logger
 
 class MQTTService:
     _instance = None
@@ -52,12 +53,12 @@ class MQTTService:
                 self.client.on_connect = self._on_connect
                 self.client.on_disconnect = self._on_disconnect
                 
-                print(f"Connecting to MQTT Broker at {self.config['host']}:{self.config['port']}...")
+                logger.info(f"Connecting to MQTT Broker at {self.config['host']}:{self.config['port']}...")
                 self.client.connect(self.config["host"], int(self.config["port"]), 60)
                 self.client.loop_start()
                 
             except Exception as e:
-                print(f"Failed to start MQTT Service: {e}")
+                logger.error(f"Failed to start MQTT Service: {e}")
                 self.client = None
                 self.connected = False
 
@@ -69,18 +70,18 @@ class MQTTService:
                 self.client.disconnect()
                 self.client = None
             self.connected = False
-            print("MQTT Service stopped")
+            logger.info("MQTT Service stopped")
 
     def _on_connect(self, client, userdata, flags, rc):
         if rc == 0:
-            print("Connected to MQTT Broker!")
+            logger.info("Connected to MQTT Broker!")
             self.connected = True
         else:
-            print(f"Failed to connect to MQTT Broker, return code {rc}")
+            logger.error(f"Failed to connect to MQTT Broker, return code {rc}")
             self.connected = False
 
     def _on_disconnect(self, client, userdata, rc):
-        print("Disconnected from MQTT Broker")
+        logger.info("Disconnected from MQTT Broker")
         self.connected = False
 
     def publish(self, device_id: str, data: Dict[str, Any]):
@@ -96,6 +97,6 @@ class MQTTService:
             payload = json.dumps(data)
             self.client.publish(topic, payload)
         except Exception as e:
-            print(f"MQTT Publish failed: {e}")
+            logger.error(f"MQTT Publish failed: {e}")
 
 mqtt_service = MQTTService()

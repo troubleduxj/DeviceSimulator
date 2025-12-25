@@ -66,6 +66,9 @@ class SystemSettings(Base):
     opcua_enabled = Column(Boolean, default=False, comment="启用OPC UA Server")
     opcua_endpoint = Column(String(255), default="opc.tcp://0.0.0.0:4840/freeopcua/server/", comment="OPC UA Endpoint")
     
+    # Timezone
+    timezone = Column(String(50), default="UTC", comment="系统时区")
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -79,5 +82,6 @@ class SystemSettings(Base):
             "modbus_enabled": self.modbus_enabled,
             "modbus_port": self.modbus_port,
             "opcua_enabled": self.opcua_enabled,
-            "opcua_endpoint": self.opcua_endpoint
+            "opcua_endpoint": self.opcua_endpoint,
+            "timezone": self.timezone
         }

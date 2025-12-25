@@ -9,16 +9,23 @@ from services.config_service import ConfigService
 from services.protocols.mqtt_service import mqtt_service
 from services.protocols.modbus_service import modbus_service
 from services.protocols.opcua_service import opcua_service
+from utils.logger import logger
 
 class DataWriter:
     def __init__(self):
         self.running = False
         self.thread = None
         self.device_service = DeviceService()
+        self.interval = 1.0 # Default 1s
+        self._device_cache = []
+        self._last_cache_update = 0
+        self._cache_ttl = 5.0 # Update cache every 5 seconds
     
     def start(self):
         """启动数据写入服务"""
         if not self.running:
+            # Services are now managed by main application lifecycle
+            logger.info("Starting DataWriter service...")
             self.running = True
             self.thread = threading.Thread(target=self._write_data_loop)
             self.thread.daemon = True
@@ -29,6 +36,7 @@ class DataWriter:
     def stop(self):
         """停止数据写入服务"""
         if self.running:
+            logger.info("Stopping DataWriter service...")
             self.running = False
             if self.thread:
                 self.thread.join()
@@ -37,23 +45,34 @@ class DataWriter:
 
     def _write_data_loop(self):
         """数据写入循环"""
+        logger.info("DataWriter loop started")
         while self.running:
+            loop_start = time.time()
             try:
-                # 1. 获取所有运行中的设备
-                # 注意：这里需要一个新的Session来获取设备，因为DeviceService内部可能会用不同的session
-                # 或者我们依赖 DeviceService.get_all_devices() 内部处理
-                devices = [d for d in self.device_service.get_all_devices() if d.status == "running"]
+                # 1. 获取所有运行中的设备 (with caching)
+                current_time = time.time()
+                if current_time - self._last_cache_update > self._cache_ttl:
+                    # Refresh cache
+                    try:
+                        all_devices = self.device_service.get_all_devices()
+                        self._device_cache = [d for d in all_devices if d.status == "running"]
+                        self._last_cache_update = current_time
+                    except Exception as e:
+                        logger.error(f"Error updating device cache: {e}")
                 
-                if not devices:
+                if not self._device_cache:
                     time.sleep(1)
                     continue
                 
-                self.process_devices(devices)
+                self.process_devices(self._device_cache)
                 
-                time.sleep(1.0) # 1Hz loop (adjustable)
+                # Maintain loop frequency
+                elapsed = time.time() - loop_start
+                sleep_time = max(0.1, self.interval - elapsed)
+                time.sleep(sleep_time)
                 
             except Exception as e:
-                print(f"DataWriter loop error: {e}")
+                logger.error(f"DataWriter loop error: {e}")
                 time.sleep(1)
 
     def process_devices(self, devices: List[Device]):
@@ -61,18 +80,14 @@ class DataWriter:
         生成并写入数据的主入口
         """
         try:
-            # 确保服务已根据最新配置启动
-            mqtt_service.start()
-            modbus_service.start()
-            opcua_service.start()
-            
             # 检查TDengine连接（如果启用）
             tdengine_connected = False
             if ConfigService.is_tdengine_enabled():
                 if tdengine_service.check_connection():
                     tdengine_connected = True
                 else:
-                    print("TDengine连接失败，将跳过TDengine写入")
+                    # logger.warning("TDengine connection failed, skipping write") 
+                    pass
 
             for device in devices:
                 # 生成数据
@@ -87,7 +102,6 @@ class DataWriter:
                 if tdengine_connected:
                     try:
                         # Filter out TAGS from data payload for TDengine insertion
-                        # TDengine does not allow inserting values for TAGS via INSERT
                         td_data = data.copy()
                         td_data["data"] = {}
                         
@@ -115,15 +129,9 @@ class DataWriter:
                         
                         # Only insert if there are metrics (columns) to insert
                         if td_data["data"]:
-                            # 确保表存在 (仅在必要时，且应由DeviceService管理)
-                            # tdengine_service.create_table_for_device(device) 
-                            # Commented out: Table creation should be handled by DeviceService to support Super Tables correctly.
-                            # Calling create_table_for_device here might try to create a normal table with Tags as Columns, which is wrong.
-                            
-                            # 写入数据
                             tdengine_service.insert_data(device.id, td_data)
                     except Exception as e:
-                        print(f"设备 {device.name} 数据写入TDengine失败: {e}")
+                        logger.error(f"Device {device.name} TDengine write failed: {e}")
                 
                 # 2. 推送 MQTT
                 mqtt_service.publish(device.id, data)
@@ -135,7 +143,7 @@ class DataWriter:
                 opcua_service.update(device.id, data["data"], device.parameters)
 
         except Exception as e:
-            print(f"数据写入流程异常: {e}")
+            logger.error(f"DataWriter process exception: {e}")
 
 # 创建全局数据写入服务实例
 data_writer = DataWriter()

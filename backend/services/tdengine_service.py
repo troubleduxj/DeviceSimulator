@@ -200,25 +200,117 @@ class TDengineService:
             res = self._rest_execute(sql)
             if res.get('code') == 0 or res.get('status') == 'succ':
                 return res.get('rows', 1)
-            
-            # 特殊处理：表已存在 (Code 1539: Table already exists)
-            # 即使使用了 IF NOT EXISTS，某些版本的 REST API 可能仍会返回此错误
-            if res.get('code') == 1539:
-                return 0
-
-            raise Exception(f"TDengine REST执行失败: {res}")
+            raise Exception(f"Update failed: {res}")
         else:
             try:
                 cursor = self.conn.cursor()
-                affected_rows = cursor.execute(sql)
-                self.conn.commit()
+                rows = cursor.execute(sql)
                 cursor.close()
-                return affected_rows
+                return rows
             except Exception as e:
-                print(f"执行更新失败: {e}")
-                self.conn.rollback()
+                # Try reconnect
+                try:
+                    self.connect()
+                    cursor = self.conn.cursor()
+                    rows = cursor.execute(sql)
+                    cursor.close()
+                    return rows
+                except:
+                    pass
                 raise e
+
+    def get_stables(self) -> List[Dict[str, Any]]:
+        """获取所有超级表"""
+        sql = "SHOW STABLES"
+        rows = self.execute_query(sql)
+        return rows
+
+    def get_tables(self, stable_name: str) -> List[Dict[str, Any]]:
+        """获取超级表下的所有子表"""
+        # 1. 尝试从 information_schema 获取 (TDengine 3.x)
+        try:
+            # 注意：需要指定 db_name，否则可能查不到或查到其他库的
+            sql = f"SELECT table_name FROM information_schema.ins_tables WHERE stable_name = '{stable_name}' AND db_name = '{self.database}'"
+            rows = self.execute_query(sql)
+            # 如果查询成功（没有抛出异常），即使为空也返回，因为这意味着它是3.x且确实没有表（或者我们查询正确）
+            # 但为了保险，如果为空，我们还是尝试一下后续方法，万一 information_schema 行为不符合预期
+            if rows:
+                return rows
+        except Exception as e:
+            # print(f"Try information_schema failed: {e}")
+            pass
+
+        # 2. 尝试 SHOW TABLES 并过滤 (TDengine 2.x)
+        try:
+            sql = "SHOW TABLES"
+            rows = self.execute_query(sql)
+            # 2.x 中 SHOW TABLES 返回包含 stable_name 字段
+            filtered = [r for r in rows if r.get('stable_name') == stable_name]
+            if filtered:
+                return filtered
+        except Exception as e:
+            pass
+
+        # 3. 回退到查询数据 (仅能获取有数据的表)
+        try:
+            sql = f"SELECT DISTINCT tbname FROM {stable_name}"
+            rows = self.execute_query(sql)
+            # 统一返回格式
+            return [{'table_name': r['tbname']} for r in rows if 'tbname' in r]
+        except Exception as e:
+            print(f"Get tables fallback failed: {e}")
+            return []
+
+    def describe_table(self, table_name: str) -> List[Dict[str, Any]]:
+        """获取表结构"""
+        clean_name = table_name.strip()
+        # Simple check: if not backticked and no dots (to avoid breaking db.table), add backticks
+        if not clean_name.startswith('`') and '.' not in clean_name:
+             clean_name = f"`{clean_name}`"
+        
+        sql = f"DESCRIBE {clean_name}"
+        rows = self.execute_query(sql)
+        return rows
     
+    def get_table_info(self, stable_name: str, table_name: str) -> Dict[str, Any]:
+        """获取子表信息（包括Tags）"""
+        # 1. 获取超级表结构以确定Tag列
+        # describe_table now handles backticks
+        schema = self.describe_table(stable_name)
+        
+        # Handle case sensitivity for schema keys
+        tags = []
+        for col in schema:
+            # Keys might be 'Field', 'field', 'Note', 'note'
+            field = col.get('Field') or col.get('field')
+            note = col.get('Note') or col.get('note')
+            if note == 'TAG':
+                tags.append(field)
+        
+        info = {
+            "table_name": table_name,
+            "stable_name": stable_name,
+            "tags": {}
+        }
+        
+        if tags:
+            # Query tag values
+            cols = ", ".join([f"`{t}`" for t in tags])
+            sql = f"SELECT {cols} FROM `{stable_name}` WHERE tbname = '{table_name}' LIMIT 1"
+            try:
+                res = self.execute_query(sql)
+                if res:
+                    info["tags"] = res[0]
+            except Exception as e:
+                print(f"Failed to get tags: {e}")
+        
+        return info
+
+    def get_table_data(self, table_name: str, limit: int = 100) -> List[Dict[str, Any]]:
+        """获取表数据"""
+        sql = f"SELECT * FROM `{table_name}` ORDER BY ts DESC LIMIT {limit}"
+        return self.execute_query(sql)
+
     def create_table_for_device(self, device: Device) -> bool:
         """为设备创建表 (独立表，不带Tags)"""
         table_name = f"`device_{device.id}`"

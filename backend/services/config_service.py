@@ -136,6 +136,8 @@ class ConfigService:
             if "opcua_enabled" in settings_data: config.opcua_enabled = settings_data["opcua_enabled"]
             if "opcua_endpoint" in settings_data: config.opcua_endpoint = settings_data["opcua_endpoint"]
             
+            if "timezone" in settings_data: config.timezone = settings_data["timezone"]
+
             db.commit()
             return True
         except Exception as e:

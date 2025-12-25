@@ -89,6 +89,8 @@ export const DICTIONARY = {
     aiAutoFill: 'AI Auto-Fill Schema',
     categoryConfig: 'Category Config',
     modelConfig: 'Model Config',
+    visualModelConfig: 'Visual Model Config',
+    visualModelDesc: 'Manage 3D models and simulation templates.',
     dashboardTitle: 'System Dashboard',
     aiReport: 'AI Diagnosis',
     statusDistribution: 'Status Distribution',
@@ -203,6 +205,9 @@ export const DICTIONARY = {
     deviceCount: 'Device Count',
 
     // System Manager
+    systemMonitor: 'System Monitor',
+    systemLogs: 'System Logs',
+    tdengineView: 'TDengine View',
     systemStatusTitle: 'System Status & Configuration',
     dataGenService: 'Data Generation Service',
     dataGenDesc: 'Controls the global data generation engine. When running, all active devices will generate data according to their configuration.',
@@ -237,7 +242,6 @@ export const DICTIONARY = {
     saveModel: 'Save Model',
 
     // Log Viewer
-    systemLogs: 'System Logs',
     noLogs: 'No logs generated yet.',
     aiAnalysis: 'AI Analysis',
     analyzing: 'Analyzing...',
@@ -263,12 +267,7 @@ export const DICTIONARY = {
     aiBatchPoweredBy: 'Powered by active LLM provider (Gemini/DeepSeek)',
     aiBatchButton: 'AI Batch',
 
-    // AI Batch Modal
-    aiBatchGeneration: 'AI 批量生成',
-    aiBatchDesc: '描述您想要生成的设备。请明确数量、类型和命名规则。',
-    aiBatchPlaceholder: '例如：为 A 仓库创建 10 个温度传感器，按顺序编号。',
-    aiBatchPoweredBy: '由当前活动的 LLM 提供支持 (Gemini/DeepSeek)',
-    aiBatchButton: 'AI 批量生成',
+
 
     // New Features
     advancedAndErrors: 'Advanced & Errors',
@@ -370,6 +369,8 @@ export const DICTIONARY = {
     aiAutoFill: 'AI 自动生成架构',
     categoryConfig: '分类配置',
     modelConfig: '模型配置',
+    visualModelConfig: '可视化模型配置',
+    visualModelDesc: '管理 3D 模型和仿真模板。',
     dashboardTitle: '系统仪表盘',
     aiReport: 'AI 智能诊断',
     statusDistribution: '设备状态分布',
@@ -476,6 +477,9 @@ export const DICTIONARY = {
     deviceCount: '设备数量',
 
     // System Manager
+    systemMonitor: '系统监控',
+    systemLogs: '系统日志',
+    tdengineView: 'TDengine 视图',
     systemStatusTitle: '系统状态与配置',
     dataGenService: '数据生成服务',
     dataGenDesc: '控制全局数据生成引擎。运行时，所有活动设备将根据其配置生成数据。',
@@ -505,12 +509,10 @@ export const DICTIONARY = {
     deleteModelConfirm: '确定要删除此仿真模型吗？',
     editModel: '编辑仿真模型',
     createModel: '创建仿真模型',
-    modelName: '模型名称',
     configJson: '配置 (JSON)',
     saveModel: '保存模型',
 
     // Log Viewer
-    systemLogs: '系统日志',
     noLogs: '暂无日志。',
     aiAnalysis: 'AI 智能分析',
     analyzing: '正在分析...',
@@ -573,5 +575,12 @@ export const DICTIONARY = {
     aiPromptPlaceholder: "描述场景 (例如 '风扇故障导致过热')...",
     aiSuccess: "AI 场景生成成功",
     aiFailed: "AI 生成失败",
+    
+    // AI Batch Modal
+    aiBatchGeneration: 'AI 批量生成',
+    aiBatchDesc: '描述您想要生成的设备。请明确数量、类型和命名规则。',
+    aiBatchPlaceholder: '例如：为 A 仓库创建 10 个温度传感器，按顺序编号。',
+    aiBatchPoweredBy: '由当前活动的 LLM 提供支持 (Gemini/DeepSeek)',
+    aiBatchButton: 'AI 批量生成',
   },
 };

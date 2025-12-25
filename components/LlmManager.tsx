@@ -89,8 +89,10 @@ export const LlmManager: React.FC<LlmManagerProps> = ({ onClose, dict, theme = '
   };
 
   return (
-    <div className={`h-full flex flex-col ${bgMain} rounded-lg border ${borderClass} overflow-hidden`}>
+    <div className={`h-full flex flex-col rounded-lg overflow-hidden`}>
        {/* Header */}
+       {/* Removed Header for Integration */}
+       {/* 
        <div className={`p-4 border-b ${borderClass} flex justify-between items-center bg-inherit`}>
          <h2 className={`text-xl font-bold ${textPrimary} flex items-center gap-2`}>
            <Sparkles className="text-purple-500" />
@@ -99,12 +101,19 @@ export const LlmManager: React.FC<LlmManagerProps> = ({ onClose, dict, theme = '
          <button onClick={handleSave} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded flex items-center gap-2 font-medium transition-colors">
             <Save size={16} /> {dict.save || 'Save'}
          </button>
-       </div>
+       </div> 
+       */}
 
        {/* Content */}
        <div className="flex-1 overflow-y-auto p-6">
           <div className="max-w-3xl mx-auto space-y-6">
               
+              <div className="flex justify-end mb-4">
+                 <button onClick={handleSave} className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded flex items-center gap-2 font-medium transition-colors">
+                    <Save size={16} /> {dict.save || 'Save'}
+                 </button>
+              </div>
+
               {/* Provider Selection */}
               <div className={`${bgCard} rounded-lg border ${borderClass} p-6`}>
                   <div className="flex justify-between items-center mb-4">
@@ -112,7 +121,7 @@ export const LlmManager: React.FC<LlmManagerProps> = ({ onClose, dict, theme = '
                           {dict.provider || 'Provider'}
                       </h3>
                       <span className={`text-sm px-3 py-1 rounded-full ${isDark ? 'bg-slate-700 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>
-                          {dict.currentActive || 'Current System Default'}: <span className="font-bold text-blue-500">{activeProvider === 'gemini' ? 'Google Gemini' : 'DeepSeek'}</span>
+                          {dict.currentActive || 'Current System Default'}: <span className="font-bold text-purple-500">{activeProvider === 'gemini' ? 'Google Gemini' : 'DeepSeek'}</span>
                       </span>
                   </div>
                   <div className="flex gap-4">
@@ -120,7 +129,7 @@ export const LlmManager: React.FC<LlmManagerProps> = ({ onClose, dict, theme = '
                           onClick={() => setConfig({ ...config, provider: 'gemini' })}
                           className={`relative flex-1 p-4 rounded-lg border-2 transition-all flex items-center justify-center gap-2 ${
                               config.provider === 'gemini' 
-                              ? 'border-blue-500 bg-blue-500/10 text-blue-500' 
+                              ? 'border-purple-500 bg-purple-500/10 text-purple-500' 
                               : `${borderClass} ${textSecondary} hover:border-slate-400`
                           }`}
                       >
@@ -137,7 +146,7 @@ export const LlmManager: React.FC<LlmManagerProps> = ({ onClose, dict, theme = '
                           onClick={() => setConfig({ ...config, provider: 'deepseek' })}
                           className={`relative flex-1 p-4 rounded-lg border-2 transition-all flex items-center justify-center gap-2 ${
                               config.provider === 'deepseek' 
-                              ? 'border-blue-500 bg-blue-500/10 text-blue-500' 
+                              ? 'border-purple-500 bg-purple-500/10 text-purple-500' 
                               : `${borderClass} ${textSecondary} hover:border-slate-400`
                           }`}
                       >
@@ -164,7 +173,7 @@ export const LlmManager: React.FC<LlmManagerProps> = ({ onClose, dict, theme = '
                         value={config.proxyUrl}
                         onChange={e => setConfig({ ...config, proxyUrl: e.target.value })}
                         placeholder="http://127.0.0.1:7890"
-                        className={`w-full p-2 rounded border ${borderClass} ${inputBg} ${textPrimary} focus:border-blue-500 outline-none`}
+                        className={`w-full p-2 rounded border ${borderClass} ${inputBg} ${textPrimary} focus:border-purple-500 outline-none`}
                       />
                       <p className="text-xs text-slate-500">Required if you are in a region where Google API is blocked. Format: http://host:port</p>
                   </div>
@@ -185,7 +194,7 @@ export const LlmManager: React.FC<LlmManagerProps> = ({ onClose, dict, theme = '
                                 value={config.gemini.apiKey}
                                 onChange={e => setConfig({ ...config, gemini: { ...config.gemini, apiKey: e.target.value } })}
                                 placeholder="sk-..."
-                                className={`w-full p-2 rounded border ${borderClass} ${inputBg} ${textPrimary} focus:border-blue-500 outline-none`}
+                                className={`w-full p-2 rounded border ${borderClass} ${inputBg} ${textPrimary} focus:border-purple-500 outline-none`}
                               />
                               <p className="text-xs text-slate-500">Google AI Studio API Key</p>
                           </div>
@@ -195,7 +204,7 @@ export const LlmManager: React.FC<LlmManagerProps> = ({ onClose, dict, theme = '
                               <select 
                                  value={config.gemini.model}
                                  onChange={e => setConfig({ ...config, gemini: { ...config.gemini, model: e.target.value } })}
-                                 className={`w-full p-2 rounded border ${borderClass} ${inputBg} ${textPrimary} focus:border-blue-500 outline-none`}
+                                 className={`w-full p-2 rounded border ${borderClass} ${inputBg} ${textPrimary} focus:border-purple-500 outline-none`}
                               >
                                  <option value="gemini-2.5-flash">gemini-2.5-flash</option>
                                  <option value="gemini-2.5-pro">gemini-2.5-pro</option>
@@ -251,7 +260,7 @@ export const LlmManager: React.FC<LlmManagerProps> = ({ onClose, dict, theme = '
                                 value={config.deepseek.apiKey}
                                 onChange={e => setConfig({ ...config, deepseek: { ...config.deepseek, apiKey: e.target.value } })}
                                 placeholder="sk-..."
-                                className={`w-full p-2 rounded border ${borderClass} ${inputBg} ${textPrimary} focus:border-blue-500 outline-none`}
+                                className={`w-full p-2 rounded border ${borderClass} ${inputBg} ${textPrimary} focus:border-purple-500 outline-none`}
                               />
                           </div>
 
@@ -262,7 +271,7 @@ export const LlmManager: React.FC<LlmManagerProps> = ({ onClose, dict, theme = '
                                 value={config.deepseek.baseUrl}
                                 onChange={e => setConfig({ ...config, deepseek: { ...config.deepseek, baseUrl: e.target.value } })}
                                 placeholder="https://api.deepseek.com"
-                                className={`w-full p-2 rounded border ${borderClass} ${inputBg} ${textPrimary} focus:border-blue-500 outline-none`}
+                                className={`w-full p-2 rounded border ${borderClass} ${inputBg} ${textPrimary} focus:border-purple-500 outline-none`}
                               />
                           </div>
 
@@ -273,7 +282,7 @@ export const LlmManager: React.FC<LlmManagerProps> = ({ onClose, dict, theme = '
                                 value={config.deepseek.model}
                                 onChange={e => setConfig({ ...config, deepseek: { ...config.deepseek, model: e.target.value } })}
                                 placeholder="deepseek-chat"
-                                className={`w-full p-2 rounded border ${borderClass} ${inputBg} ${textPrimary} focus:border-blue-500 outline-none`}
+                                className={`w-full p-2 rounded border ${borderClass} ${inputBg} ${textPrimary} focus:border-purple-500 outline-none`}
                               />
                               <p className="text-xs text-slate-500">e.g. deepseek-chat, deepseek-coder</p>
                           </div>

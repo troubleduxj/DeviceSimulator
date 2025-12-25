@@ -71,7 +71,7 @@ export const AddDeviceModal: React.FC<AddDeviceModalProps> = ({ isOpen, onClose,
         <form onSubmit={handleSubmit} className="space-y-4">
             <div>
                 <label className={`block text-sm ${textSub} mb-1`}>{dict.name}</label>
-                <input required value={name} onChange={e => setName(e.target.value)} className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-blue-500 outline-none`} />
+                <input required value={name} onChange={e => setName(e.target.value)} className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-purple-500 outline-none`} />
             </div>
             
             <div>
@@ -90,7 +90,7 @@ export const AddDeviceModal: React.FC<AddDeviceModalProps> = ({ isOpen, onClose,
                     <input placeholder={dict.metricNamePlaceholder} value={metricInput.name || ''} onChange={e => setMetricInput({...metricInput, name: e.target.value})} className={`${inputBg} rounded p-1 text-xs border ${inputBorder} ${textMain}`} />
                     <input placeholder={dict.metricUnitPlaceholder} value={metricInput.unit || ''} onChange={e => setMetricInput({...metricInput, unit: e.target.value})} className={`${inputBg} rounded p-1 text-xs border ${inputBorder} ${textMain}`} />
                 </div>
-                <button type="button" onClick={handleAddMetric} className={`w-full py-1 ${inputBg} hover:${isDark ? 'bg-slate-700' : 'bg-gray-200'} text-blue-400 text-xs rounded border border-dashed ${isDark ? 'border-slate-600' : 'border-gray-400'} flex items-center justify-center gap-1`}>
+                <button type="button" onClick={handleAddMetric} className={`w-full py-1 ${inputBg} hover:${isDark ? 'bg-slate-700' : 'bg-gray-200'} text-purple-400 text-xs rounded border border-dashed ${isDark ? 'border-slate-600' : 'border-gray-400'} flex items-center justify-center gap-1`}>
                     <Plus size={12}/> {dict.addMetric}
                 </button>
 
@@ -106,7 +106,7 @@ export const AddDeviceModal: React.FC<AddDeviceModalProps> = ({ isOpen, onClose,
 
             <div className="flex justify-end gap-3 pt-4">
                 <button type="button" onClick={onClose} className={`px-4 py-2 rounded ${textSub} hover:${textMain} text-sm`}>{dict.cancel}</button>
-                <button type="submit" className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded text-sm font-medium">{dict.create}</button>
+                <button type="submit" className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded text-sm font-medium">{dict.create}</button>
             </div>
         </form>
       </div>

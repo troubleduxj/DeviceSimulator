@@ -39,11 +39,30 @@ def sync_tdengine():
             # 2. Create/Ensure Sub Table
             sub_table_name = f"`device_{device.id}`"
             tags = {
-                "device_id": device.id,
                 "device_name": device.name,
                 "device_model": device.model or ""
             }
-            print(f"  Creating/Checking sub table: {sub_table_name}")
+            
+            # Extract custom tags from parameters
+            for param in device.parameters:
+                # Handle param object or dict
+                is_tag = False
+                if isinstance(param, dict):
+                    is_tag = param.get('is_tag', False)
+                    p_id = param.get('id')
+                    default_val = param.get('default_value')
+                else:
+                    is_tag = getattr(param, 'is_tag', False)
+                    p_id = getattr(param, 'id', None)
+                    default_val = getattr(param, 'default_value', None)
+                
+                if is_tag and p_id:
+                    # Don't overwrite standard tags
+                    if p_id in ["device_name", "device_model"]:
+                        continue
+                    tags[p_id] = default_val
+
+            print(f"  Creating/Checking sub table: {sub_table_name} with tags: {tags}")
             if tdengine_service.create_sub_table(st_name, sub_table_name, tags):
                  print(f"  Sub table {sub_table_name} synced.")
             else:

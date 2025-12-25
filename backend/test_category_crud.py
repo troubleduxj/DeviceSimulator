@@ -15,6 +15,7 @@ def test_category_crud():
     category_data = {
         "id": cat_id,
         "name": cat_name,
+        "code": cat_id,
         "description": "初始描述",
         "parameters": [
             {"id": "p1", "name": "temp", "type": "数值", "unit": "C"}
@@ -47,6 +48,7 @@ def test_category_crud():
     update_data = {
         "id": created_cat['id'],
         "name": f"{cat_name}_Updated",
+        "code": cat_id, # Keep same code
         "description": "更新后的描述",
         "parameters": [
             {"id": "p1", "name": "temp", "type": "数值", "unit": "C"},
@@ -70,7 +72,7 @@ def test_category_crud():
     # 创建一个设备使用该分类
     device_data = {
         "name": f"Dev_Casc_{ts}",
-        "type": updated_cat['name'],
+        "type": updated_cat['code'], # Use code
         "model": "M1",
         "parameters": []
     }
@@ -79,21 +81,24 @@ def test_category_crud():
         device_id = resp.json()['id']
         print(f"创建测试设备 {device_data['name']} 成功，类型为 {device_data['type']}")
         
-        # 再次更新分类名称
+        # 再次更新分类名称和编码
         new_cat_name = f"{cat_name}_Renamed"
+        new_cat_code = f"{cat_id}_Renamed"
         update_data['name'] = new_cat_name
+        update_data['code'] = new_cat_code
+        
         resp = requests.put(f"{BASE_URL}/api/category/{created_cat['id']}", json=update_data)
         if resp.status_code == 200:
-            print(f"分类重命名为 {new_cat_name}")
+            print(f"分类重命名为 {new_cat_name}, 编码为 {new_cat_code}")
             
             # 检查设备类型是否更新
             resp = requests.get(f"{BASE_URL}/api/device/")
             devices = resp.json()
             target_device = next((d for d in devices if d['id'] == device_id), None)
-            if target_device and target_device['type'] == new_cat_name:
+            if target_device and target_device['type'] == new_cat_code:
                 print("级联更新验证成功: 设备类型已自动更新")
             else:
-                print(f"级联更新验证失败: 设备类型为 {target_device['type'] if target_device else 'None'}")
+                print(f"级联更新验证失败: 设备类型为 {target_device['type'] if target_device else 'None'} (期望: {new_cat_code})")
                 
         # 清理设备
         requests.delete(f"{BASE_URL}/api/device/{device_id}")

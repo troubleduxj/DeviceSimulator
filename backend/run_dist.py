@@ -54,7 +54,10 @@ if __name__ == "__main__":
     # PyInstaller multiprocessing fix for Windows
     multiprocessing.freeze_support()
     
+    print("Initializing backend...", flush=True)
+    
     setup_environment()
+    print("Environment setup done.", flush=True)
     
     parser = argparse.ArgumentParser(description="IoT Device Simulator Backend")
     parser.add_argument("--port", type=int, default=8000, help="Port to run the server on")
@@ -62,11 +65,14 @@ if __name__ == "__main__":
     
     # Import app AFTER setting up environment so config.py reads the env vars
     try:
+        print("Importing app...", flush=True)
         from main import app
+        print("App imported successfully.", flush=True)
     except ImportError as e:
         print(f"Failed to import app: {e}")
         sys.exit(1)
     
     print(f"Starting server on port {args.port}...")
     # Cannot use reload=True in frozen app
-    uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="info")
+    # Use 0.0.0.0 to ensure accessibility
+    uvicorn.run(app, host="0.0.0.0", port=args.port, log_level="info")

@@ -13,7 +13,7 @@ import {
   Play, Square, Plus, Activity, Cpu, Database, 
   Settings, LayoutDashboard, 
   Zap, Globe, Server, Fan, Box, List, LayoutGrid, Layers,
-  Sun, Moon, X, Sliders, Sparkles
+  Sun, Moon, X, Sliders
 } from 'lucide-react';
 import { TelemetryChart } from './components/TelemetryChart';
 import { DigitalTwin } from './components/DigitalTwin';
@@ -25,10 +25,11 @@ import { CategoryManager } from './components/CategoryManager';
 import { ParameterManager } from './components/ParameterManager';
 import { ScenarioManager } from './components/ScenarioManager';
 import { VisualModelManager } from './components/VisualModelManager';
-import { LlmManager } from './components/LlmManager';
 import { Dashboard } from './components/Dashboard';
 import { Playback } from './components/Playback';
 import { RealtimeMonitor } from './components/RealtimeMonitor';
+import { SystemMonitor } from './components/SystemMonitor';
+import { TDengineViewer } from './components/TDengineViewer';
 import { DeviceMonitorView } from './components/DeviceMonitorView';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
@@ -45,7 +46,7 @@ const App: React.FC = () => {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [metricsViewMode, setMetricsViewMode] = useState<'grid' | 'list'>('grid');
-  const [currentView, setCurrentView] = useState<'monitor' | 'devices' | 'categories' | 'scenarios' | 'visual_models' | 'models' | 'system' | 'parameters' | 'llm' | 'dashboard' | 'playback' | 'realtime'>('dashboard');
+  const [currentView, setCurrentView] = useState<'monitor' | 'devices' | 'categories' | 'scenarios' | 'visual_models' | 'models' | 'system' | 'parameters' | 'dashboard' | 'playback' | 'realtime' | 'system_monitor' | 'tdengine_view'>('dashboard');
   
   // --- Simulation State ---
   const [history, setHistory] = useState<SimulationStep[]>([]);
@@ -56,6 +57,7 @@ const App: React.FC = () => {
   const bufferRef = useRef<SimulationStep[]>([]);
   const activeDeviceRef = useRef<Device>(INITIAL_DEVICES[0]);
   const isFetchingRef = useRef(false);
+  const mainRef = useRef<HTMLElement>(null);
   
   // Helpers
   const activeDevice = devices.find(d => d.id === activeDeviceId) || devices[0];
@@ -65,6 +67,13 @@ const App: React.FC = () => {
   useEffect(() => {
     initApiBase().then(() => setIsApiReady(true));
   }, []);
+
+  // Reset Scroll on View Change
+  useEffect(() => {
+    if (mainRef.current) {
+        mainRef.current.scrollTop = 0;
+    }
+  }, [currentView]);
 
   // Keep ref in sync
   useEffect(() => {
@@ -361,7 +370,25 @@ const App: React.FC = () => {
     }
   };
 
-  const handleExportHistory = () => {
+  const handleExportHistory = async () => {
+    // 1. Backend Mode Export
+    if (simulationMode === 'Backend') {
+        try {
+            const blob = await backendService.exportDeviceData(activeDevice.id);
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.setAttribute('href', url);
+            link.setAttribute('download', `${activeDevice.name}_history_${new Date().toISOString()}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            return;
+        } catch (e) {
+            console.error("Backend export failed, falling back to local history:", e);
+            alert("Backend export failed, exporting visible local history instead.");
+        }
+    }
+
     if (history.length === 0) return;
     
     // 1. Collect all possible keys from metrics
@@ -414,8 +441,8 @@ const App: React.FC = () => {
   const mainClass = isDark ? 'bg-black' : 'bg-slate-50';
   const headerClass = isDark ? 'bg-black/50 border-slate-800' : 'bg-white/80 border-slate-200 shadow-sm';
   const cardClass = isDark ? 'bg-black border-slate-800' : 'bg-white border-slate-200 shadow-sm';
-  const buttonClass = isDark ? 'text-slate-400 hover:bg-slate-900 hover:text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-blue-600';
-  const activeBtnClass = 'bg-blue-600 text-white shadow-lg shadow-blue-900/20';
+  const buttonClass = isDark ? 'text-slate-400 hover:bg-slate-900 hover:text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-purple-600';
+  const activeBtnClass = 'bg-purple-600 text-white shadow-lg shadow-purple-900/20';
   
   // Helper for sub-components (metrics items, etc.)
   const itemClass = isDark ? 'bg-slate-900/30 border-slate-800' : 'bg-slate-50 border-slate-200';
@@ -439,7 +466,7 @@ const App: React.FC = () => {
             title="Toggle Sidebar"
         >
             <div className={`flex items-center gap-2 overflow-hidden whitespace-nowrap ${isSidebarCollapsed ? 'justify-center w-full' : ''}`}>
-                <Activity className="text-blue-500 shrink-0" />
+                <Activity className="text-purple-500 shrink-0" />
                 {!isSidebarCollapsed && <span className="font-bold tracking-tight">{dict.title}</span>}
             </div>
         </div>
@@ -573,6 +600,38 @@ const App: React.FC = () => {
             
             <button
                 onClick={() => {
+                    setCurrentView('system_monitor');
+                    if (simulationMode !== 'Backend') setSimulationMode('Backend');
+                }}
+                className={`flex items-center gap-3 p-2 rounded-md transition-colors text-sm ${
+                    currentView === 'system_monitor' 
+                    ? activeBtnClass
+                    : buttonClass
+                } ${isSidebarCollapsed ? 'justify-center' : ''}`}
+                title={dict.systemMonitor || 'System Monitor'}
+            >
+                <Activity size={18} />
+                {!isSidebarCollapsed && <span>{dict.systemMonitor || 'System Monitor'}</span>}
+            </button>
+            
+            <button
+                onClick={() => {
+                    setCurrentView('tdengine_view');
+                    if (simulationMode !== 'Backend') setSimulationMode('Backend');
+                }}
+                className={`flex items-center gap-3 p-2 rounded-md transition-colors text-sm ${
+                    currentView === 'tdengine_view' 
+                    ? activeBtnClass
+                    : buttonClass
+                } ${isSidebarCollapsed ? 'justify-center' : ''}`}
+                title={dict.tdengineView || 'TDengine View'}
+            >
+                <Database size={18} />
+                {!isSidebarCollapsed && <span>{dict.tdengineView || 'TDengine View'}</span>}
+            </button>
+            
+            <button
+                onClick={() => {
                     setCurrentView('parameters');
                     if (simulationMode !== 'Backend') setSimulationMode('Backend');
                 }}
@@ -587,21 +646,6 @@ const App: React.FC = () => {
                 {!isSidebarCollapsed && <span>{dict.parameterSettings}</span>}
             </button>
 
-            <button
-                onClick={() => {
-                    setCurrentView('llm');
-                    if (simulationMode !== 'Backend') setSimulationMode('Backend');
-                }}
-                className={`flex items-center gap-3 p-2 rounded-md transition-colors text-sm ${
-                    currentView === 'llm' 
-                    ? activeBtnClass
-                    : buttonClass
-                } ${isSidebarCollapsed ? 'justify-center' : ''}`}
-                title={dict.llmSettings}
-            >
-                <Sparkles size={18} />
-                {!isSidebarCollapsed && <span>{dict.llmSettings}</span>}
-            </button>
 
             <button
                 onClick={() => {
@@ -638,7 +682,7 @@ const App: React.FC = () => {
                 }`}
                 title={`Current Mode: ${simulationMode}`}
             >
-                {simulationMode === 'AI' && <Cpu size={18} className="text-blue-400" />}
+                {simulationMode === 'AI' && <Cpu size={18} className="text-purple-400" />}
                 {simulationMode === 'Local' && <Database size={18} className="text-emerald-400" />}
                 {simulationMode === 'Backend' && <Server size={18} className="text-orange-400" />}
                 
@@ -677,13 +721,16 @@ const App: React.FC = () => {
       </aside>
 
       {/* --- Main Content Area --- */}
-      <main className={`flex-1 h-full overflow-hidden p-3 flex flex-col gap-3 ${mainClass} relative`}>
+      <main 
+        ref={mainRef}
+        className={`flex-1 h-full overflow-hidden p-3 flex flex-col gap-3 ${mainClass} relative`}
+      >
         
         {/* Background Decoration */}
          {isDark && (
              <div className="absolute inset-0 pointer-events-none overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-[500px] bg-gradient-to-b from-blue-500/5 to-transparent" />
-                <div className="absolute -top-[200px] -right-[200px] w-[600px] h-[600px] bg-indigo-500/10 rounded-full blur-[100px]" />
+                <div className="absolute top-0 left-0 w-full h-[500px] bg-gradient-to-b from-purple-500/5 to-transparent" />
+                <div className="absolute -top-[200px] -right-[200px] w-[600px] h-[600px] bg-purple-500/10 rounded-full blur-[100px]" />
                 <div className="absolute bottom-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-slate-800 to-transparent" />
              </div>
          )}
@@ -754,6 +801,24 @@ const App: React.FC = () => {
                 </div>
             )}
 
+            {currentView === 'system_monitor' && (
+                <div className="flex-1 min-w-0 h-full">
+                    <SystemMonitor 
+                        dict={dict} 
+                        theme={theme}
+                    />
+                </div>
+            )}
+
+            {currentView === 'tdengine_view' && (
+                <div className="flex-1 min-w-0 h-full">
+                    <TDengineViewer 
+                        dict={dict} 
+                        theme={theme}
+                    />
+                </div>
+            )}
+
             {/* Case 3: Manager Views */}
             {currentView === 'devices' && (
                 <div className="flex-1">
@@ -807,12 +872,6 @@ const App: React.FC = () => {
             {currentView === 'parameters' && (
                 <div className="flex-1">
                     <ParameterManager onClose={() => setCurrentView('dashboard')} dict={dict} theme={theme} />
-                </div>
-            )}
-
-            {currentView === 'llm' && (
-                <div className="flex-1">
-                    <LlmManager onClose={() => setCurrentView('dashboard')} dict={dict} theme={theme} />
                 </div>
             )}
 

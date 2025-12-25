@@ -77,7 +77,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-full flex items-center justify-between ${bgClass} ${borderClass} border rounded px-3 py-1.5 text-sm ${textClass} hover:border-blue-500 focus:border-purple-500 outline-none transition-colors`}
+        className={`w-full flex items-center justify-between ${bgClass} ${borderClass} border rounded px-3 py-1.5 text-sm ${textClass} hover:border-purple-500 focus:border-purple-500 outline-none transition-colors`}
       >
         <span className="truncate">
           {selectedOption ? selectedOption.label : <span className={placeholderClass}>{placeholder}</span>}
@@ -96,7 +96,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 placeholder="Search..."
-                className={`w-full ${inputBgClass} ${dropdownBorderClass} border rounded pl-8 pr-2 py-1 text-xs ${textClass} focus:border-blue-500 outline-none`}
+                className={`w-full ${inputBgClass} ${dropdownBorderClass} border rounded pl-8 pr-2 py-1 text-xs ${textClass} focus:border-purple-500 outline-none`}
                 onClick={e => e.stopPropagation()}
               />
               {searchTerm && (
@@ -124,11 +124,11 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
                     setIsOpen(false);
                   }}
                   className={`w-full text-left px-3 py-2 text-sm rounded ${hoverClass} transition-colors flex items-center justify-between ${
-                    option.value === value ? 'bg-blue-600/20 text-blue-400' : itemTextClass
+                    option.value === value ? 'bg-purple-600/20 text-purple-400' : itemTextClass
                   }`}
                 >
                   <span className="truncate">{option.label}</span>
-                  {option.value === value && <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />}
+                  {option.value === value && <div className="w-1.5 h-1.5 rounded-full bg-purple-500" />}
                 </button>
               ))
             ) : (

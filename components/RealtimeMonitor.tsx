@@ -115,7 +115,7 @@ export const RealtimeMonitor: React.FC<RealtimeMonitorProps> = ({
                       {/* Add Status Card */}
                       <div className={`${isDark ? 'bg-slate-800' : 'bg-slate-100'} p-4 rounded border ${isDark ? 'border-slate-800' : 'border-slate-300'} relative overflow-hidden`}>
                             <div className={`text-xs ${textMuted} uppercase font-bold mb-1`}>Scenario</div>
-                            <div className="text-sm font-bold text-blue-400 truncate" title={selectedDevice.currentScenario}>
+                            <div className="text-sm font-bold text-purple-400 truncate" title={selectedDevice.currentScenario}>
                                 {selectedDevice.currentScenario || 'None'}
                             </div>
                       </div>
@@ -159,7 +159,7 @@ export const RealtimeMonitor: React.FC<RealtimeMonitorProps> = ({
                                           type="monotone" 
                                           dataKey={`metrics.${param.id || param.name}`}
                                           name={param.name}
-                                          stroke={['#10b981', '#3b82f6', '#f59e0b', '#ec4899', '#8b5cf6', '#ef4444', '#06b6d4', '#84cc16'][idx % 8]} 
+                                          stroke={['#10b981', '#9333ea', '#f59e0b', '#ec4899', '#8b5cf6', '#ef4444', '#06b6d4', '#84cc16'][idx % 8]} 
                                           dot={false}
                                           strokeWidth={2}
                                           isAnimationActive={false}

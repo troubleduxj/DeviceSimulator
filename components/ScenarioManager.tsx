@@ -205,16 +205,21 @@ export const ScenarioManager: React.FC<ScenarioManagerProps> = ({ onClose, dict,
             scenarios: scenarios,
             scenario_configs: configs
         });
-        alert(dict.saveSuccess || "Saved successfully");
-        fetchData();
+        
+        // Ask to sync
+        if (confirm((dict.saveSuccess || "Saved successfully") + "\n\n" + (dict.syncPrompt || "Do you want to sync these scenarios to all existing devices?"))) {
+            await handleSyncToDevices(true);
+        } else {
+            fetchData();
+        }
     } catch (error) {
         alert(dict.saveFailed || "Save failed");
     }
   };
 
-  const handleSyncToDevices = async () => {
+  const handleSyncToDevices = async (skipConfirm = false) => {
     if (!selectedCategory) return;
-    if (!confirm(dict.syncConfirm || "This will overwrite scenarios for ALL devices in this category. Continue?")) return;
+    if (!skipConfirm && !confirm(dict.syncConfirm || "This will overwrite scenarios for ALL devices in this category. Continue?")) return;
     
     setIsSyncing(true);
     try {
@@ -347,7 +352,7 @@ export const ScenarioManager: React.FC<ScenarioManagerProps> = ({ onClose, dict,
                     <button 
                         onClick={() => setIsAiOpen(true)} 
                         disabled={!selectedCategory} 
-                        className="text-blue-400 hover:text-blue-300 p-1"
+                        className="text-purple-400 hover:text-purple-300 p-1"
                         title="AI Generate"
                     >
                         <Sparkles size={16} />
@@ -362,7 +367,7 @@ export const ScenarioManager: React.FC<ScenarioManagerProps> = ({ onClose, dict,
             {isAiOpen && (
                 <div className="absolute inset-0 z-10 bg-black/80 backdrop-blur-sm p-4 flex flex-col animate-in fade-in">
                     <div className="flex justify-between items-center mb-2">
-                        <h3 className="text-sm font-bold text-blue-400 flex items-center gap-2">
+                        <h3 className="text-sm font-bold text-purple-400 flex items-center gap-2">
                             <Sparkles size={14} /> AI Generator
                         </h3>
                         <button onClick={() => setIsAiOpen(false)} className="text-slate-500 hover:text-white">
@@ -370,7 +375,7 @@ export const ScenarioManager: React.FC<ScenarioManagerProps> = ({ onClose, dict,
                         </button>
                     </div>
                     <textarea 
-                        className={`flex-1 w-full ${inputBg} border ${borderMain} rounded p-2 text-xs ${textMain} mb-2 resize-none focus:border-blue-500 outline-none`}
+                        className={`flex-1 w-full ${inputBg} border ${borderMain} rounded p-2 text-xs ${textMain} mb-2 resize-none focus:border-purple-500 outline-none`}
                         placeholder={dict.aiPromptPlaceholder || "Describe scenario (e.g. 'Overheating due to fan failure')..."}
                         value={aiDescription}
                         onChange={e => setAiDescription(e.target.value)}
@@ -379,7 +384,7 @@ export const ScenarioManager: React.FC<ScenarioManagerProps> = ({ onClose, dict,
                     <button 
                         onClick={handleGenerateAiScenario}
                         disabled={isGeneratingAi || !aiDescription.trim()}
-                        className="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs py-2 rounded flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full bg-purple-600 hover:bg-purple-500 text-white text-xs py-2 rounded flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {isGeneratingAi ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
                         {dict.generate || "Generate"}
@@ -460,7 +465,7 @@ export const ScenarioManager: React.FC<ScenarioManagerProps> = ({ onClose, dict,
                         </div>
                         <div className="flex gap-2">
                             <button 
-                                onClick={handleSyncToDevices}
+                                onClick={() => handleSyncToDevices(false)}
                                 disabled={isSyncing}
                                 className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm border ${isDark ? 'border-blue-500/30 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20' : 'bg-blue-50 text-blue-600'}`}
                             >

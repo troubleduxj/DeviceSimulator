@@ -307,7 +307,7 @@ export const Playback: React.FC<PlaybackProps> = ({ devices, activeDeviceId, onD
                       {/* Main Chart */}
                       <div className={`flex-1 ${isDark ? 'bg-slate-800' : 'bg-slate-100'} p-4 rounded border ${isDark ? 'border-slate-700' : 'border-slate-300'} min-h-[300px]`}>
                           <h3 className={`text-sm font-bold ${textPrimary} mb-4 flex items-center gap-2`}>
-                              <Activity size={16} className="text-blue-400" />
+                              <Activity size={16} className="text-purple-400" />
                               Trend Analysis
                           </h3>
                           <div className="h-[calc(100%-30px)] w-full">
@@ -331,7 +331,7 @@ export const Playback: React.FC<PlaybackProps> = ({ devices, activeDeviceId, onD
                                             key={param.id}
                                             type="monotone" 
                                             dataKey={param.id || param.name} 
-                                            stroke={['#3b82f6', '#10b981', '#f59e0b'][idx % 3]} 
+                                            stroke={['#9333ea', '#10b981', '#f59e0b'][idx % 3]} 
                                             dot={false}
                                             strokeWidth={2}
                                             connectNulls={false}

@@ -230,7 +230,7 @@ export const VisualModelManager: React.FC<VisualModelManagerProps> = ({ onClose,
                                   <button onClick={() => handlePreview(model)} className={`p-1.5 rounded ${hoverBg} text-emerald-400`} title={dict.preview || 'Preview'}>
                                       <Eye size={14} />
                                   </button>
-                                  <button onClick={() => handleEdit(model)} className={`p-1.5 rounded ${hoverBg} text-blue-400`} title={dict.edit}>
+                                  <button onClick={() => handleEdit(model)} className={`p-1.5 rounded ${hoverBg} text-purple-400`} title={dict.edit}>
                                       <Edit size={14} />
                                   </button>
                                   <button onClick={() => handleDelete(model.id)} className={`p-1.5 rounded ${hoverBg} text-red-400`} title={dict.delete}>

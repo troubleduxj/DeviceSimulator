@@ -13,7 +13,7 @@ interface TelemetryChartProps {
   theme?: 'dark' | 'light';
 }
 
-const COLORS = ['#3b82f6', '#ef4444', '#22c55e', '#eab308', '#a855f7'];
+const COLORS = ['#9333ea', '#ef4444', '#22c55e', '#eab308', '#a855f7'];
 
 export const TelemetryChart: React.FC<TelemetryChartProps> = ({ device, data, dict, onExport, theme = 'dark' }) => {
   const isDark = theme === 'dark';
@@ -48,7 +48,7 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({ device, data, di
           <button 
             onClick={onExport}
             disabled={data.length === 0}
-            className={`flex items-center gap-1 px-2 py-1 rounded ${isDark ? 'bg-slate-800 hover:bg-slate-700 text-blue-400 border-slate-700' : 'bg-slate-100 hover:bg-slate-200 text-blue-600 border-slate-200'} border transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-xs`}
+            className={`flex items-center gap-1 px-2 py-1 rounded ${isDark ? 'bg-slate-800 hover:bg-slate-700 text-purple-400 border-slate-700' : 'bg-slate-100 hover:bg-slate-200 text-purple-600 border-slate-200'} border transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-xs`}
             title="Export CSV"
           >
             <Download size={12} /> CSV

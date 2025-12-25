@@ -248,7 +248,7 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ onClose, dict,
           </button>
           <button 
             onClick={openCreate}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded text-sm font-bold transition-colors"
+            className="flex items-center gap-2 bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded text-sm font-bold transition-colors"
           >
             <Plus size={16} />
             {dict.newCategory}
@@ -306,7 +306,7 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ onClose, dict,
                   >
                     <RefreshCw size={16} />
                   </button>
-                  <button onClick={() => openEdit(cat)} className={`p-1.5 text-blue-400 rounded ${isDark ? 'hover:bg-blue-900/30' : 'hover:bg-blue-100'}`}>
+                  <button onClick={() => openEdit(cat)} className={`p-1.5 text-violet-400 rounded ${isDark ? 'hover:bg-violet-900/30' : 'hover:bg-violet-100'}`}>
                     <Edit size={16} />
                   </button>
                   <button onClick={() => handleDelete(cat.id)} className={`p-1.5 text-red-400 rounded ${isDark ? 'hover:bg-red-900/30' : 'hover:bg-red-100'}`}>
@@ -616,7 +616,7 @@ const CategoryForm: React.FC<CategoryFormProps> = ({ category: initialCategory, 
                      <textarea 
                         value={category.description}
                         onChange={e => setCategory({...category, description: e.target.value})}
-                        className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-blue-500 outline-none h-24`}
+                        className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-purple-500 outline-none h-24`}
                         placeholder="Describe the device to auto-generate parameters..."
                      />
                      <div className="mt-2 flex justify-end">
@@ -641,7 +641,7 @@ const CategoryForm: React.FC<CategoryFormProps> = ({ category: initialCategory, 
                 <div>
                    <div className="flex justify-between items-center mb-4">
                      <div className={`text-sm ${textSub}`}>{dict.defineMetrics || 'Define Parameters'}</div>
-                     <button onClick={addParam} className={`flex items-center gap-1 text-xs ${isDark ? 'bg-slate-800 hover:bg-slate-700' : 'bg-white hover:bg-gray-100'} text-blue-400 px-3 py-1.5 rounded border ${borderMain}`}>
+                     <button onClick={addParam} className={`flex items-center gap-1 text-xs ${isDark ? 'bg-slate-800 hover:bg-slate-700' : 'bg-white hover:bg-gray-100'} text-purple-400 px-3 py-1.5 rounded border ${borderMain}`}>
                         <Plus size={14}/> {dict.addParameter || 'Add Parameter'}
                      </button>
                    </div>
@@ -727,7 +727,7 @@ const CategoryForm: React.FC<CategoryFormProps> = ({ category: initialCategory, 
                               <select 
                                  value={param.is_tag ? 'tag' : 'column'}
                                  onChange={e => handleParamChange(idx, 'is_tag', e.target.value === 'tag')}
-                                 className={`w-full border rounded px-2 py-1 text-sm font-bold ${param.is_tag ? (isDark ? 'bg-amber-900/50 border-amber-600 text-amber-300' : 'bg-amber-100 border-amber-300 text-amber-700') : (isDark ? 'bg-blue-900/50 border-blue-600 text-blue-300' : 'bg-blue-100 border-blue-300 text-blue-700')}`}
+                                 className={`w-full border rounded px-2 py-1 text-sm font-bold ${param.is_tag ? (isDark ? 'bg-amber-900/50 border-amber-600 text-amber-300' : 'bg-amber-100 border-amber-300 text-amber-700') : (isDark ? 'bg-purple-900/50 border-purple-600 text-purple-300' : 'bg-purple-100 border-purple-300 text-purple-700')}`}
                               >
                                  <option value="column">{dict.tagColumn || 'Column'}</option>
                                  <option value="tag">{dict.tagTag || 'Tag'}</option>

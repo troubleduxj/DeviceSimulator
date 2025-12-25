@@ -12,6 +12,14 @@ declare global {
 }
 
 export const initApiBase = async () => {
+  // In development mode, prefer the Vite proxy (which points to port 8000)
+  // over the Electron-spawned backend (which might be stale or running on a random port).
+  if (import.meta.env.DEV) {
+    console.log('Development mode detected. Using default /api base (Vite Proxy -> Port 8000)');
+    API_BASE = '/api';
+    return;
+  }
+
   if (window.electronAPI) {
     try {
       const config = await window.electronAPI.getServerConfig();
@@ -129,6 +137,49 @@ export interface SystemSettings {
   modbus_port?: number;
   opcua_enabled: boolean;
   opcua_endpoint?: string;
+  timezone?: string;
+}
+
+export interface SystemPerformance {
+  cpu: {
+    percent: number;
+    count: number;
+    process_percent: number;
+  };
+  memory: {
+    total: number;
+    available: number;
+    percent: number;
+    process_usage: number;
+  };
+  disk: {
+    total: number;
+    free: number;
+    percent: number;
+  };
+  uptime: number;
+  services: {
+    api: boolean;
+    data_generator: boolean;
+    tdengine: boolean;
+    mqtt: boolean;
+    modbus: boolean;
+    opcua: boolean;
+  };
+}
+
+export interface SystemLog {
+  timestamp: string;
+  source: string;
+  level: string;
+  message: string;
+}
+
+export interface Prompt {
+  key: string;
+  description: string;
+  template: string;
+  updated_at: string;
 }
 
 export const backendService = {
@@ -241,6 +292,23 @@ export const backendService = {
     return await response.json();
   },
 
+  async fetchSystemPerformance(): Promise<SystemPerformance> {
+    const response = await fetch(`${API_BASE}/system/performance`);
+    if (!response.ok) throw new Error('Failed to fetch system performance');
+    return await response.json();
+  },
+
+  async fetchSystemLogs(level?: string, keyword?: string, limit: number = 100): Promise<{logs: SystemLog[]}> {
+    const params = new URLSearchParams();
+    if (level && level !== 'All') params.append('level', level);
+    if (keyword) params.append('keyword', keyword);
+    params.append('limit', limit.toString());
+    
+    const response = await fetch(`${API_BASE}/system/logs?${params.toString()}`);
+    if (!response.ok) throw new Error('Failed to fetch logs');
+    return await response.json();
+  },
+
   async fetchTDengineConfig(): Promise<TDengineConfig> {
     const response = await fetch(`${API_BASE}/system/tdengine/config`);
     if (!response.ok) throw new Error('Failed to fetch TDengine config');
@@ -273,6 +341,111 @@ export const backendService = {
       } catch (e) {
           return null;
       }
+  },
+
+  async fetchTDengineStables(): Promise<any[]> {
+    const url = `${API_BASE}/system/tdengine/stables`;
+    const response = await fetch(url);
+    if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Failed to fetch stables from ${url}: ${response.status} ${text}`);
+    }
+    return await response.json();
+  },
+
+  async fetchTDengineTables(stable: string): Promise<any[]> {
+    const response = await fetch(`${API_BASE}/system/tdengine/tables?stable=${stable}`);
+    if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Failed to fetch tables: ${response.status} ${text}`);
+    }
+    return await response.json();
+  },
+
+  async fetchTDengineDescribe(table: string): Promise<any[]> {
+    const response = await fetch(`${API_BASE}/system/tdengine/describe?table=${table}`);
+    if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Failed to describe table: ${response.status} ${text}`);
+    }
+    return await response.json();
+  },
+
+  async fetchTDengineTableInfo(stable: string, table: string): Promise<any> {
+    const response = await fetch(`${API_BASE}/system/tdengine/table-info?stable=${stable}&table=${table}`);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch table info`);
+    }
+    return await response.json();
+  },
+
+  async fetchTDengineData(table: string, limit: number = 100): Promise<any[]> {
+    const response = await fetch(`${API_BASE}/system/tdengine/data?table=${table}&limit=${limit}`);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch table data`);
+    }
+    return await response.json();
+  },
+
+  async syncTDengineTables(): Promise<any> {
+    const response = await fetch(`${API_BASE}/system/tdengine/sync`, {
+        method: 'POST'
+    });
+    if (!response.ok) throw new Error('Failed to sync tables');
+    return await response.json();
+  },
+
+  // --- Prompt Management ---
+  async fetchPrompts(): Promise<Prompt[]> {
+    const response = await fetch(`${API_BASE}/prompt/`);
+    if (!response.ok) throw new Error('Failed to fetch prompts');
+    return await response.json();
+  },
+
+  async getPrompt(key: string): Promise<Prompt> {
+    const response = await fetch(`${API_BASE}/prompt/${key}`);
+    if (!response.ok) throw new Error('Failed to fetch prompt');
+    return await response.json();
+  },
+
+  async updatePrompt(key: string, template: string, description?: string): Promise<Prompt> {
+    const response = await fetch(`${API_BASE}/prompt/${key}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ template, description })
+    });
+    if (!response.ok) throw new Error('Failed to update prompt');
+    return await response.json();
+  },
+
+  async resetPrompts(): Promise<Prompt[]> {
+    const response = await fetch(`${API_BASE}/prompt/reset`, {
+      method: 'POST'
+    });
+    if (!response.ok) throw new Error('Failed to reset prompts');
+    return await response.json();
+  },
+
+  async resetSinglePrompt(key: string): Promise<Prompt> {
+    const response = await fetch(`${API_BASE}/prompt/${key}/reset`, {
+      method: 'POST'
+    });
+    if (!response.ok) throw new Error('Failed to reset prompt');
+    return await response.json();
+  },
+
+  async fetchPromptVersions(key: string): Promise<PromptVersion[]> {
+    const response = await fetch(`${API_BASE}/prompt/${key}/versions`);
+    if (!response.ok) throw new Error('Failed to fetch prompt versions');
+    return await response.json();
+  },
+
+  async restorePromptVersion(key: string, versionId: number): Promise<Prompt> {
+    const response = await fetch(`${API_BASE}/prompt/${key}/versions/${versionId}/restore`, {
+      method: 'POST'
+    });
+    if (!response.ok) throw new Error('Failed to restore prompt version');
+    return await response.json();
   },
 
   // Fetch all devices and map to frontend Device type
@@ -428,6 +601,25 @@ export const backendService = {
         throw new Error(err.detail || 'Failed to generate history data');
     }
     return await response.json();
+  },
+
+  async exportDeviceData(deviceId: string, startTime?: string, endTime?: string, format: 'csv' | 'json' = 'csv'): Promise<Blob> {
+    let url = `${API_BASE}/data/devices/${deviceId}/export`;
+    const params = new URLSearchParams();
+    if (startTime) params.append('start_time', startTime);
+    if (endTime) params.append('end_time', endTime);
+    params.append('format', format);
+    
+    if (params.toString()) {
+        url += `?${params.toString()}`;
+    }
+
+    const response = await fetch(url);
+    if (!response.ok) {
+        const err = await response.json().catch(() => ({ detail: 'Export failed' }));
+        throw new Error(err.detail || 'Export failed');
+    }
+    return await response.blob();
   },
 
   // Fetch latest data for a device

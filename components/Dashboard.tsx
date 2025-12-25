@@ -43,7 +43,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ devices, onSelectDevice, d
   
   const getDeviceIcon = (type: Device['type']) => {
     switch (type) {
-        case 'Generator': return <Fan size={32} className="text-blue-400" />;
+        case 'Generator': return <Fan size={32} className="text-purple-400" />;
         case 'Cutter': return <Zap size={32} className="text-amber-400" />;
         case 'single_head_cutter': return <Zap size={32} className="text-amber-400" />;
         case 'welder': return <Zap size={32} className="text-orange-400" />;
@@ -97,7 +97,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ devices, onSelectDevice, d
   }, [devices]);
 
   const CATEGORY_COLORS = [
-    '#3b82f6', '#8b5cf6', '#f59e0b', '#ec4899', '#10b981', '#6366f1', 
+    '#9333ea', '#8b5cf6', '#f59e0b', '#ec4899', '#10b981', '#6366f1', 
     '#ef4444', '#06b6d4', '#84cc16', '#f97316', '#14b8a6', '#d946ef'
   ];
 
@@ -153,8 +153,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ devices, onSelectDevice, d
       {/* KPI Cards Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
         {/* Card 1: Total Devices */}
-        <div className={`${cardClass} rounded-2xl p-5 flex items-center gap-4 hover:shadow-md hover:border-blue-500/50 transition-all`}>
-          <div className="p-3 bg-blue-500/10 rounded-xl text-blue-400">
+        <div className={`${cardClass} rounded-2xl p-5 flex items-center gap-4 hover:shadow-md hover:border-purple-500/50 transition-all`}>
+          <div className="p-3 bg-purple-500/10 rounded-xl text-purple-400">
             <Server size={24} />
           </div>
           <div>
@@ -210,8 +210,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ devices, onSelectDevice, d
         {/* Status Chart */}
         <div className={`${cardClass} rounded-2xl p-6 shadow-sm hover:shadow-md transition-all`}>
           <h3 className={`text-lg font-bold ${textPrimary} mb-6 flex items-center gap-2`}>
-            <div className="p-2 bg-blue-500/10 rounded-lg">
-               <Activity size={20} className="text-blue-400" />
+            <div className="p-2 bg-purple-500/10 rounded-lg">
+               <Activity size={20} className="text-purple-400" />
             </div>
             {dict.statusDistribution || 'Status Distribution'}
           </h3>
@@ -284,8 +284,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ devices, onSelectDevice, d
          {/* Top Complexity Chart */}
          <div className={`${cardClass} rounded-2xl p-6 shadow-sm hover:shadow-md transition-all`}>
             <h3 className={`text-lg font-bold ${textPrimary} mb-6 flex items-center gap-2`}>
-              <div className="p-2 bg-indigo-500/10 rounded-lg">
-                 <BarChart3 size={20} className="text-indigo-400" />
+              <div className="p-2 bg-purple-500/10 rounded-lg">
+                 <BarChart3 size={20} className="text-purple-400" />
               </div>
               {dict.topComplexDevices || 'Top Devices by Complexity'}
               <span className={`text-xs font-normal ${textMuted} ml-2 border ${isDark ? 'border-slate-800 bg-slate-950' : 'border-slate-200 bg-slate-50'} px-2 py-0.5 rounded-full`}>Top 5</span>
@@ -315,7 +315,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ devices, onSelectDevice, d
                     itemStyle={{ color: isDark ? '#f1f5f9' : '#1e293b' }}
                     formatter={(value: number) => [value, dict.metricsCount || 'Metrics Count']}
                   />
-                  <Bar dataKey="value" fill="#6366f1" radius={[0, 4, 4, 0]}>
+                  <Bar dataKey="value" fill="#9333ea" radius={[0, 4, 4, 0]}>
                     {complexityData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={CATEGORY_COLORS[index % CATEGORY_COLORS.length]} fillOpacity={0.8} />
                     ))}

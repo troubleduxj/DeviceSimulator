@@ -17,7 +17,7 @@ const materials = {
   metalDark: new THREE.MeshStandardMaterial({ color: '#1e293b', roughness: 0.7, metalness: 0.6 }),
   metalLight: new THREE.MeshStandardMaterial({ color: '#64748b', roughness: 0.3, metalness: 0.8 }),
   hazard: new THREE.MeshStandardMaterial({ color: '#facc15', roughness: 0.8 }),
-  glowBlue: new THREE.MeshStandardMaterial({ color: '#0ea5e9', emissive: '#0ea5e9', emissiveIntensity: 2, toneMapped: false }),
+  glowBlue: new THREE.MeshStandardMaterial({ color: '#a855f7', emissive: '#a855f7', emissiveIntensity: 2, toneMapped: false }),
   screen: new THREE.MeshStandardMaterial({ color: '#000000', roughness: 0.2 }),
   copper: new THREE.MeshStandardMaterial({ color: '#b45309', roughness: 0.3, metalness: 0.8 }),
   rubber: new THREE.MeshStandardMaterial({ color: '#171717', roughness: 0.9 }),
@@ -356,14 +356,14 @@ const CutterModel: React.FC<{ data: Record<string, number> | undefined }> = ({ d
                        <coneGeometry args={[0.04, 0.6, 8]} />
                        <primitive object={materials.glowBlue} />
                     </mesh>
-                    <pointLight ref={plasmaLightRef} color="#0ea5e9" intensity={2} distance={3} decay={2} />
+                    <pointLight ref={plasmaLightRef} color="#a855f7" intensity={2} distance={3} decay={2} />
                     <Sparkles 
                        count={40} 
                        scale={1.2} 
                        size={3} 
                        speed={2} 
                        opacity={0.8} 
-                       color="#bfdbfe"
+                       color="#e9d5ff"
                        position={[0, -0.4, 0]}
                        noise={0.2}
                     />
@@ -486,7 +486,7 @@ export const DigitalTwin: React.FC<DigitalTwinProps> = ({ device, latestData, di
             castShadow 
             shadow-mapSize={[1024, 1024]} 
         />
-        <pointLight position={[-10, -10, -10]} intensity={0.5} color="#3b82f6" />
+        <pointLight position={[-10, -10, -10]} intensity={0.5} color="#9333ea" />
         
         <Center>
             {renderModel()}

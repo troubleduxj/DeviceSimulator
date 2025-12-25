@@ -3,6 +3,7 @@ import asyncio
 import threading
 from typing import Dict, Any
 from services.config_service import ConfigService
+from utils.logger import logger
 
 # Try to import asyncua, handle failure gracefully
 try:
@@ -10,7 +11,7 @@ try:
     ASYNCUA_AVAILABLE = True
 except ImportError as e:
     ASYNCUA_AVAILABLE = False
-    print(f"Warning: asyncua import failed: {e}. OPC UA service will be disabled.")
+    logger.warning(f"Warning: asyncua import failed: {e}. OPC UA service will be disabled.")
 
 class OPCUAService:
     def __init__(self):
@@ -29,7 +30,7 @@ class OPCUAService:
         # Check if enabled in config
         settings = ConfigService.get_system_settings()
         if not settings.get("opcua_enabled", False):
-            print("OPC UA Service disabled in settings.")
+            logger.info("OPC UA Service disabled in settings.")
             return False
 
         if self.running:
@@ -79,7 +80,7 @@ class OPCUAService:
         
         # Start
         async with self.server:
-            print(f"OPC UA Server started at {self.server.endpoint}")
+            logger.info(f"OPC UA Server started at {self.server.endpoint}")
             while self.running:
                 await asyncio.sleep(1)
 
@@ -115,7 +116,7 @@ class OPCUAService:
                     # ua.VariantType...
                     await var_node.write_value(value)
                 except Exception as e:
-                    print(f"OPC UA write error for {device_id}.{key}: {e}")
+                    logger.error(f"OPC UA write error for {device_id}.{key}: {e}")
 
     async def _create_device_node(self, device_id: str, parameters: list):
         """Create Object Node for device"""
@@ -144,7 +145,7 @@ class OPCUAService:
                     self.nodes[device_id]['vars'][p_id] = var_node
                     
         except Exception as e:
-            print(f"Error creating OPC UA node for {device_id}: {e}")
+            logger.error(f"Error creating OPC UA node for {device_id}: {e}")
 
 # Global instance
 opcua_service = OPCUAService()

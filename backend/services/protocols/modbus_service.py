@@ -20,6 +20,7 @@ except ImportError:
 
 from services.config_service import ConfigService
 from models.device import Parameter, ParameterType
+from utils.logger import logger
 
 class ModbusService:
     _instance = None
@@ -74,7 +75,7 @@ class ModbusService:
             # identity.ModelName = 'Device Simulator Server'
             # identity.MajorMinorRevision = '1.0.0'
 
-            print(f"Starting Modbus TCP Server on port {port}...")
+            logger.info(f"Starting Modbus TCP Server on port {port}...")
             self.server_thread = threading.Thread(
                 target=StartTcpServer,
                 kwargs={"context": self.context, "address": ("0.0.0.0", port)}
@@ -89,7 +90,7 @@ class ModbusService:
         # Stopping it gracefully requires accessing the server instance which StartTcpServer wraps.
         # For now, we just set running=False to stop updating registers.
         self.running = False
-        print("Modbus Service stopped (updates paused)")
+        logger.info("Modbus Service stopped (updates paused)")
 
     def update(self, device_id: str, data: Dict[str, Any], parameters: List[Parameter]):
         """Update Modbus registers based on generated data"""

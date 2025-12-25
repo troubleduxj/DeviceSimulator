@@ -1,6 +1,9 @@
 from fastapi import APIRouter, HTTPException, status, Body
+from fastapi.responses import StreamingResponse
 from typing import List, Dict, Optional
 from datetime import datetime, timedelta
+import pandas as pd
+import io
 from services.tdengine_service import tdengine_service
 from services.data_writer import data_writer
 from services.device_service import device_service
@@ -9,6 +12,50 @@ from services.data_generator import DataGenerator
 from config.config import settings
 
 router = APIRouter()
+
+@router.get("/devices/{device_id}/export")
+def export_device_data(
+    device_id: str, 
+    start_time: str = None, 
+    end_time: str = None,
+    format: str = "csv"
+):
+    """
+    Export device data as CSV.
+    """
+    try:
+        if not ConfigService.is_tdengine_enabled():
+             raise HTTPException(status_code=400, detail="TDengine is disabled")
+        
+        # 1. Fetch data (limit to reasonable amount, e.g. 10000 or paginate)
+        # Here we fetch all within range, be careful with large ranges
+        limit = 10000 
+        data = tdengine_service.get_device_data(device_id, limit, start_time, end_time)
+        
+        if not data:
+            raise HTTPException(status_code=404, detail="No data found for this range")
+            
+        # 2. Convert to DataFrame
+        df = pd.DataFrame(data)
+        
+        # 3. Export
+        if format.lower() == "csv":
+            stream = io.StringIO()
+            df.to_csv(stream, index=False)
+            response = StreamingResponse(iter([stream.getvalue()]), media_type="text/csv")
+            response.headers["Content-Disposition"] = f"attachment; filename=device_{device_id}_data.csv"
+            return response
+        elif format.lower() == "json":
+            # Just return JSON response directly
+            return data
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported format")
+            
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        print(f"Export error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/devices/{device_id}/generate-history")
 def generate_history_data(

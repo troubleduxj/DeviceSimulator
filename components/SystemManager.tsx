@@ -25,7 +25,7 @@ export const SystemManager: React.FC<SystemManagerProps> = ({ onClose, dict, the
   const textSubDarker = isDark ? 'text-slate-500' : 'text-gray-400';
   const inputBg = isDark ? 'bg-slate-900' : 'bg-gray-50';
   const inputBorder = isDark ? 'border-slate-700' : 'border-gray-300';
-  const tabActive = isDark ? 'text-blue-400 border-b-2 border-blue-400 bg-slate-800/50' : 'text-blue-600 border-b-2 border-blue-600 bg-blue-50';
+  const tabActive = isDark ? 'text-purple-400 border-b-2 border-purple-400 bg-slate-800/50' : 'text-purple-600 border-b-2 border-purple-600 bg-purple-50';
   const tabInactive = isDark ? 'text-slate-400 hover:text-white' : 'text-gray-500 hover:text-gray-900';
 
   const [status, setStatus] = useState<SystemStatus | null>(null);
@@ -40,6 +40,10 @@ export const SystemManager: React.FC<SystemManagerProps> = ({ onClose, dict, the
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [tdengineInfo, setTdengineInfo] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'general' | 'tdengine' | 'mqtt' | 'modbus' | 'opcua'>('general');
+
+  useEffect(() => {
+    console.log('SystemManager mounted, activeTab:', activeTab);
+  }, []);
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -135,7 +139,7 @@ export const SystemManager: React.FC<SystemManagerProps> = ({ onClose, dict, the
       {/* Header */}
       <div className={`p-4 border-b ${borderMain} flex justify-between items-center ${bgHeader}`}>
         <h2 className={`text-xl font-bold ${textMain} flex items-center gap-2`}>
-          <Activity className="text-blue-500" />
+          <Activity className="text-purple-500" />
           {dict.systemStatusTitle}
         </h2>
         <button 
@@ -185,32 +189,35 @@ export const SystemManager: React.FC<SystemManagerProps> = ({ onClose, dict, the
           
           {/* General Tab */}
           {activeTab === 'general' && (
-              <div className={`${bgCard} p-6 rounded-lg border ${borderCard}`}>
-                  <div className="flex items-center justify-between mb-4">
-                      <h3 className={`text-lg font-bold ${textMain} flex items-center gap-2`}>
-                          <Server className="text-emerald-400" />
-                          {dict.dataGenService}
-                      </h3>
-                      <div className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
-                          status?.status === 'running' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : `${isDark ? 'bg-slate-700 text-slate-400' : 'bg-gray-200 text-gray-500'}`
-                      }`}>
-                          {status?.status === 'running' ? dict.running : dict.stopped}
+              <div className="space-y-6">
+                  <div className={`${bgCard} p-6 rounded-lg border ${borderCard}`}>
+                      <div className="flex items-center justify-between mb-4">
+                          <h3 className={`text-lg font-bold ${textMain} flex items-center gap-2`}>
+                              <Server className="text-emerald-400" />
+                              {dict.dataGenService}
+                          </h3>
+                          <div className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
+                              status?.status === 'running' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : `${isDark ? 'bg-slate-700 text-slate-400' : 'bg-gray-200 text-gray-500'}`
+                          }`}>
+                              {status?.status === 'running' ? dict.running : dict.stopped}
+                          </div>
                       </div>
+                      <p className={`${textSub} mb-6 text-sm`}>
+                          {dict.dataGenDesc}
+                      </p>
+
+                      <button
+                          onClick={toggleSystem}
+                          className={`flex items-center justify-center gap-2 w-full py-3 rounded font-bold transition-all ${
+                              status?.status === 'running' 
+                              ? 'bg-red-500/10 text-red-500 border border-red-500/50 hover:bg-red-500 hover:text-white' 
+                              : 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-lg shadow-emerald-900/20'
+                          }`}
+                      >
+                          <Power size={18} />
+                          {status?.status === 'running' ? dict.stopAllData : dict.startAllData}
+                      </button>
                   </div>
-                  <p className={`${textSub} mb-6 text-sm`}>
-                      {dict.dataGenDesc}
-                  </p>
-                  <button
-                      onClick={toggleSystem}
-                      className={`flex items-center justify-center gap-2 w-full py-3 rounded font-bold transition-all ${
-                          status?.status === 'running' 
-                          ? 'bg-red-500/10 text-red-500 border border-red-500/50 hover:bg-red-500 hover:text-white' 
-                          : 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-lg shadow-emerald-900/20'
-                      }`}
-                  >
-                      <Power size={18} />
-                      {status?.status === 'running' ? dict.stopAllData : dict.startAllData}
-                  </button>
               </div>
           )}
 
@@ -220,7 +227,7 @@ export const SystemManager: React.FC<SystemManagerProps> = ({ onClose, dict, the
               <div className={`${bgCard} p-6 rounded-lg border ${borderCard}`}>
                   <div className="flex items-center justify-between mb-6">
                       <h3 className={`text-lg font-bold ${textMain} flex items-center gap-2`}>
-                          <Database className="text-blue-400" />
+                          <Database className="text-purple-400" />
                           {dict.tdengineIntegration}
                       </h3>
                       <div className="flex items-center gap-3">
@@ -260,7 +267,7 @@ export const SystemManager: React.FC<SystemManagerProps> = ({ onClose, dict, the
                                   type="text" 
                                   value={config.host || ''}
                                   onChange={e => setConfig({...config, host: e.target.value})}
-                                  className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-blue-500 outline-none font-mono`}
+                                  className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-purple-500 outline-none font-mono`}
                                   placeholder="127.0.0.1"
                               />
                           </div>
@@ -270,7 +277,7 @@ export const SystemManager: React.FC<SystemManagerProps> = ({ onClose, dict, the
                                   type="number" 
                                   value={config.port || 6041}
                                   onChange={e => setConfig({...config, port: parseInt(e.target.value)})}
-                                  className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-blue-500 outline-none font-mono`}
+                                  className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-purple-500 outline-none font-mono`}
                               />
                           </div>
                           <div className="flex items-center gap-3 pt-4">
@@ -279,7 +286,7 @@ export const SystemManager: React.FC<SystemManagerProps> = ({ onClose, dict, the
                                   id="td_enabled"
                                   checked={config.enabled}
                                   onChange={e => setConfig({...config, enabled: e.target.checked})}
-                                  className={`w-4 h-4 rounded ${inputBorder} ${inputBg} text-blue-600 focus:ring-blue-500`}
+                                  className={`w-4 h-4 rounded ${inputBorder} ${inputBg} text-purple-600 focus:ring-purple-500`}
                               />
                               <label htmlFor="td_enabled" className={`text-sm ${textMain} font-medium cursor-pointer`}>{dict.enableTdengine}</label>
                           </div>
@@ -291,7 +298,7 @@ export const SystemManager: React.FC<SystemManagerProps> = ({ onClose, dict, the
                                   type="text" 
                                   value={config.user || ''}
                                   onChange={e => setConfig({...config, user: e.target.value})}
-                                  className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-blue-500 outline-none font-mono`}
+                                  className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-purple-500 outline-none font-mono`}
                                   placeholder="root"
                               />
                           </div>
@@ -301,7 +308,7 @@ export const SystemManager: React.FC<SystemManagerProps> = ({ onClose, dict, the
                                   type="password" 
                                   value={config.password || ''}
                                   onChange={e => setConfig({...config, password: e.target.value})}
-                                  className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-blue-500 outline-none font-mono`}
+                                  className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-purple-500 outline-none font-mono`}
                                   placeholder="taosdata"
                               />
                           </div>
@@ -311,7 +318,7 @@ export const SystemManager: React.FC<SystemManagerProps> = ({ onClose, dict, the
                                   type="text" 
                                   value={config.database || ''}
                                   onChange={e => setConfig({...config, database: e.target.value})}
-                                  className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-blue-500 outline-none font-mono`}
+                                  className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-purple-500 outline-none font-mono`}
                                   placeholder="device_simulator"
                               />
                           </div>
@@ -321,7 +328,7 @@ export const SystemManager: React.FC<SystemManagerProps> = ({ onClose, dict, the
                   <div className={`flex items-center gap-4 pt-4 border-t ${borderCard}`}>
                       <button 
                           onClick={handleSaveConfig}
-                          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold transition-colors"
+                          className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded font-bold transition-colors"
                       >
                           <Save size={16} /> {dict.saveConfig}
                       </button>
@@ -359,7 +366,7 @@ export const SystemManager: React.FC<SystemManagerProps> = ({ onClose, dict, the
                               type="text" 
                               value={config.subtable_name_template || 'd_{device_id}'}
                               onChange={e => setConfig({...config, subtable_name_template: e.target.value})}
-                              className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-blue-500 outline-none font-mono`}
+                              className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-purple-500 outline-none font-mono`}
                               placeholder="d_{device_id}"
                           />
                           <p className={`text-xs ${textSubDarker} mt-1`}>{dict.subtableNameHint}</p>
@@ -370,7 +377,7 @@ export const SystemManager: React.FC<SystemManagerProps> = ({ onClose, dict, the
                   <div className={`flex items-center gap-4 pt-4 mt-4 border-t ${borderCard}`}>
                       <button 
                           onClick={handleSaveConfig}
-                          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold transition-colors"
+                          className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded font-bold transition-colors"
                       >
                           <Save size={16} /> {dict.saveConfig}
                       </button>
@@ -397,7 +404,7 @@ export const SystemManager: React.FC<SystemManagerProps> = ({ onClose, dict, the
                                   type="text" 
                                   value={systemSettings.mqtt_host || ''}
                                   onChange={e => setSystemSettings({...systemSettings, mqtt_host: e.target.value})}
-                                  className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-blue-500 outline-none font-mono`}
+                                  className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-purple-500 outline-none font-mono`}
                                   placeholder="localhost"
                               />
                           </div>
@@ -407,7 +414,7 @@ export const SystemManager: React.FC<SystemManagerProps> = ({ onClose, dict, the
                                   type="number" 
                                   value={systemSettings.mqtt_port || 1883}
                                   onChange={e => setSystemSettings({...systemSettings, mqtt_port: parseInt(e.target.value)})}
-                                  className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-blue-500 outline-none font-mono`}
+                                  className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-purple-500 outline-none font-mono`}
                               />
                           </div>
                           <div className="flex items-center gap-3 pt-4">
@@ -416,7 +423,7 @@ export const SystemManager: React.FC<SystemManagerProps> = ({ onClose, dict, the
                                   id="mqtt_enabled"
                                   checked={systemSettings.mqtt_enabled}
                                   onChange={e => setSystemSettings({...systemSettings, mqtt_enabled: e.target.checked})}
-                                  className={`w-4 h-4 rounded ${inputBorder} ${inputBg} text-blue-600 focus:ring-blue-500`}
+                                  className={`w-4 h-4 rounded ${inputBorder} ${inputBg} text-purple-600 focus:ring-purple-500`}
                               />
                               <label htmlFor="mqtt_enabled" className={`text-sm ${textMain} font-medium cursor-pointer`}>{dict.enableMqttPush}</label>
                           </div>
@@ -428,7 +435,7 @@ export const SystemManager: React.FC<SystemManagerProps> = ({ onClose, dict, the
                                   type="text" 
                                   value={systemSettings.mqtt_user || ''}
                                   onChange={e => setSystemSettings({...systemSettings, mqtt_user: e.target.value})}
-                                  className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-blue-500 outline-none font-mono`}
+                                  className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-purple-500 outline-none font-mono`}
                               />
                           </div>
                           <div>
@@ -437,7 +444,7 @@ export const SystemManager: React.FC<SystemManagerProps> = ({ onClose, dict, the
                                   type="password" 
                                   value={systemSettings.mqtt_password || ''}
                                   onChange={e => setSystemSettings({...systemSettings, mqtt_password: e.target.value})}
-                                  className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-blue-500 outline-none font-mono`}
+                                  className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-purple-500 outline-none font-mono`}
                               />
                           </div>
                           <div>
@@ -446,7 +453,7 @@ export const SystemManager: React.FC<SystemManagerProps> = ({ onClose, dict, the
                                   type="text" 
                                   value={systemSettings.mqtt_topic_template || 'devices/{device_id}/data'}
                                   onChange={e => setSystemSettings({...systemSettings, mqtt_topic_template: e.target.value})}
-                                  className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-blue-500 outline-none font-mono`}
+                                  className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-purple-500 outline-none font-mono`}
                                   placeholder="devices/{device_id}/data"
                               />
                               <p className={`text-xs ${textSubDarker} mt-1`}>Use {"{device_id}"} as placeholder.</p>
@@ -457,7 +464,7 @@ export const SystemManager: React.FC<SystemManagerProps> = ({ onClose, dict, the
                   <div className={`flex items-center gap-4 pt-4 border-t ${borderCard}`}>
                       <button 
                           onClick={handleSaveSettings}
-                          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold transition-colors"
+                          className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded font-bold transition-colors"
                       >
                           <Save size={16} /> {dict.saveMqttSettings}
                       </button>
@@ -483,7 +490,7 @@ export const SystemManager: React.FC<SystemManagerProps> = ({ onClose, dict, the
                                   type="number" 
                                   value={systemSettings.modbus_port || 5020}
                                   onChange={e => setSystemSettings({...systemSettings, modbus_port: parseInt(e.target.value)})}
-                                  className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-blue-500 outline-none font-mono`}
+                                  className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-purple-500 outline-none font-mono`}
                               />
                           </div>
                           <div className="flex items-center gap-3 pt-4">
@@ -492,7 +499,7 @@ export const SystemManager: React.FC<SystemManagerProps> = ({ onClose, dict, the
                                   id="modbus_enabled"
                                   checked={systemSettings.modbus_enabled}
                                   onChange={e => setSystemSettings({...systemSettings, modbus_enabled: e.target.checked})}
-                                  className={`w-4 h-4 rounded ${inputBorder} ${inputBg} text-blue-600 focus:ring-blue-500`}
+                                  className={`w-4 h-4 rounded ${inputBorder} ${inputBg} text-purple-600 focus:ring-purple-500`}
                               />
                               <label htmlFor="modbus_enabled" className={`text-sm ${textMain} font-medium cursor-pointer`}>{dict.enableModbusServer}</label>
                           </div>
@@ -513,7 +520,7 @@ export const SystemManager: React.FC<SystemManagerProps> = ({ onClose, dict, the
                   <div className={`flex items-center gap-4 pt-4 border-t ${borderCard}`}>
                       <button 
                           onClick={handleSaveSettings}
-                          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold transition-colors"
+                          className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded font-bold transition-colors"
                       >
                           <Save size={16} /> {dict.saveModbusSettings}
                       </button>
@@ -539,7 +546,7 @@ export const SystemManager: React.FC<SystemManagerProps> = ({ onClose, dict, the
                                   type="text" 
                                   value={systemSettings.opcua_endpoint || 'opc.tcp://0.0.0.0:4840/freeopcua/server/'}
                                   onChange={e => setSystemSettings({...systemSettings, opcua_endpoint: e.target.value})}
-                                  className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-blue-500 outline-none font-mono`}
+                                  className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-purple-500 outline-none font-mono`}
                                   placeholder="opc.tcp://0.0.0.0:4840/freeopcua/server/"
                               />
                           </div>
@@ -549,7 +556,7 @@ export const SystemManager: React.FC<SystemManagerProps> = ({ onClose, dict, the
                                   id="opcua_enabled"
                                   checked={systemSettings.opcua_enabled}
                                   onChange={e => setSystemSettings({...systemSettings, opcua_enabled: e.target.checked})}
-                                  className={`w-4 h-4 rounded ${inputBorder} ${inputBg} text-blue-600 focus:ring-blue-500`}
+                                  className={`w-4 h-4 rounded ${inputBorder} ${inputBg} text-purple-600 focus:ring-purple-500`}
                               />
                               <label htmlFor="opcua_enabled" className={`text-sm ${textMain} font-medium cursor-pointer`}>Enable OPC UA Server</label>
                           </div>
@@ -569,7 +576,7 @@ export const SystemManager: React.FC<SystemManagerProps> = ({ onClose, dict, the
                   <div className={`flex items-center gap-4 pt-4 border-t ${borderCard}`}>
                       <button 
                           onClick={handleSaveSettings}
-                          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold transition-colors"
+                          className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded font-bold transition-colors"
                       >
                           <Save size={16} /> Save OPC UA Settings
                       </button>
