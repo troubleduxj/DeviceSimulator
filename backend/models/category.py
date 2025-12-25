@@ -17,6 +17,8 @@ class CategoryDB(Base):
     parameters = Column(JSON)  # 定义该分类下设备的参数模板
     physics_config = Column(JSON, default={}) # 物理仿真配置 (新增)
     logic_rules = Column(JSON, default=[]) # 逻辑规则配置 (新增)
+    scenarios = Column(JSON, default=[]) # 场景列表 (新增)
+    scenario_configs = Column(JSON, default={}) # 场景配置 (新增)
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
@@ -29,6 +31,8 @@ class Category(BaseModel):
     parameters: List[Parameter] = Field(default_factory=list) # 使用 Parameter 类型
     physics_config: Dict[str, Any] = Field(default_factory=dict) # 新增
     logic_rules: List[Dict[str, Any]] = Field(default_factory=list) # 新增
+    scenarios: List[str] = Field(default_factory=list) # 新增
+    scenario_configs: Dict[str, Any] = Field(default_factory=dict) # 新增
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
 

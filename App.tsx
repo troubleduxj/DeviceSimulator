@@ -5,14 +5,15 @@ import {
 import { INITIAL_DEVICES, DICTIONARY } from './constants';
 import { fetchAiSimulationBatch } from './services/geminiService';
 import { generateLocalData } from './services/physicsService';
-import { backendService } from './services/backendService';
+import { backendService, initApiBase } from './services/backendService';
 import { formatCSVTimestamp } from './utils/timeUtils';
 
 // Icons & UI
 import { 
   Play, Square, Plus, Activity, Cpu, Database, 
   Settings, LayoutDashboard, 
-  Zap, Globe, Server, Fan, Box, List, LayoutGrid, Layers
+  Zap, Globe, Server, Fan, Box, List, LayoutGrid, Layers,
+  Sun, Moon, X, Sliders, Sparkles
 } from 'lucide-react';
 import { TelemetryChart } from './components/TelemetryChart';
 import { DigitalTwin } from './components/DigitalTwin';
@@ -21,23 +22,30 @@ import { AddDeviceModal } from './components/AddDeviceModal';
 import { DeviceManager } from './components/DeviceManager';
 import { SystemManager } from './components/SystemManager';
 import { CategoryManager } from './components/CategoryManager';
+import { ParameterManager } from './components/ParameterManager';
+import { ScenarioManager } from './components/ScenarioManager';
+import { VisualModelManager } from './components/VisualModelManager';
+import { LlmManager } from './components/LlmManager';
 import { Dashboard } from './components/Dashboard';
 import { Playback } from './components/Playback';
 import { RealtimeMonitor } from './components/RealtimeMonitor';
+import { DeviceMonitorView } from './components/DeviceMonitorView';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 const MAX_HISTORY = 60; // Keep 60 seconds of history
 
 const App: React.FC = () => {
   // --- Global State ---
+  const [isApiReady, setIsApiReady] = useState(false);
   const [localDevices, setLocalDevices] = useState<Device[]>(INITIAL_DEVICES);
   const [devices, setDevices] = useState<Device[]>(INITIAL_DEVICES);
   const [activeDeviceId, setActiveDeviceId] = useState<string>(INITIAL_DEVICES[0].id);
   const [simulationMode, setSimulationMode] = useState<SimulationMode>('Backend');
   const [language, setLanguage] = useState<'en' | 'zh'>('en');
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [metricsViewMode, setMetricsViewMode] = useState<'grid' | 'list'>('grid');
-  const [currentView, setCurrentView] = useState<'monitor' | 'devices' | 'categories' | 'models' | 'system' | 'dashboard' | 'playback' | 'realtime'>('dashboard');
+  const [currentView, setCurrentView] = useState<'monitor' | 'devices' | 'categories' | 'scenarios' | 'visual_models' | 'models' | 'system' | 'parameters' | 'llm' | 'dashboard' | 'playback' | 'realtime'>('dashboard');
   
   // --- Simulation State ---
   const [history, setHistory] = useState<SimulationStep[]>([]);
@@ -53,6 +61,11 @@ const App: React.FC = () => {
   const activeDevice = devices.find(d => d.id === activeDeviceId) || devices[0];
   const dict = DICTIONARY[language];
 
+  // Initialize API
+  useEffect(() => {
+    initApiBase().then(() => setIsApiReady(true));
+  }, []);
+
   // Keep ref in sync
   useEffect(() => {
     if (activeDevice) {
@@ -61,39 +74,41 @@ const App: React.FC = () => {
   }, [activeDevice]);
 
   // Handle Mode Switching & Device List
-  useEffect(() => {
-    const fetchDevs = async () => {
-      if (simulationMode === 'Backend') {
-        try {
-          console.log('Fetching backend devices...');
-          const backendDevices = await backendService.fetchDevices();
-          console.log('Backend devices fetched:', backendDevices);
-          setDevices(backendDevices);
-          
-          // Use ref to avoid stale closure in setInterval
-          const currentActive = activeDeviceRef.current;
-          
-          // If current active device is not in list, pick first one
-          if (currentActive && !backendDevices.find(d => d.id === currentActive.id)) {
-             if (backendDevices.length > 0) {
-                setActiveDeviceId(backendDevices[0].id);
-             }
-          }
-        } catch (error) {
-          console.error('Failed to fetch devices:', error);
+  const fetchDevs = React.useCallback(async () => {
+    if (simulationMode === 'Backend') {
+      try {
+        console.log('Fetching backend devices...');
+        const backendDevices = await backendService.fetchDevices();
+        console.log('Backend devices fetched:', backendDevices);
+        setDevices(backendDevices);
+        
+        // Use ref to avoid stale closure in setInterval
+        const currentActive = activeDeviceRef.current;
+        
+        // If current active device is not in list, pick first one
+        if (currentActive && !backendDevices.find(d => d.id === currentActive.id)) {
+           if (backendDevices.length > 0) {
+              setActiveDeviceId(backendDevices[0].id);
+           }
         }
-      } else {
-        setDevices(localDevices);
+      } catch (error) {
+        console.error('Failed to fetch devices:', error);
       }
-    };
+    } else {
+      setDevices(localDevices);
+    }
+  }, [simulationMode, localDevices]);
 
+  useEffect(() => {
+    if (!isApiReady) return;
+    
     fetchDevs();
     
     // Poll for device list changes every 5 seconds
     const interval = setInterval(fetchDevs, 5000);
     return () => clearInterval(interval);
 
-  }, [simulationMode, localDevices]);
+  }, [fetchDevs, isApiReady]);
 
   // Reset history when switching devices
   useEffect(() => {
@@ -156,6 +171,11 @@ const App: React.FC = () => {
                 if (newHistory.length > MAX_HISTORY) return newHistory.slice(newHistory.length - MAX_HISTORY);
                 return newHistory;
               });
+
+              // Add to logs if it's significant or periodically
+              if (step.logMessage && (step.statusSeverity !== 'info' || Math.random() > 0.8)) {
+                setLogs(prev => [...prev, step]);
+              }
             } else {
                // console.warn('No data received from backend');
             }
@@ -227,6 +247,9 @@ const App: React.FC = () => {
 
   const updateDevice = (updated: Device) => {
     setDevices(prev => prev.map(d => d.id === updated.id ? updated : d));
+    if (simulationMode !== 'Backend') {
+      setLocalDevices(prev => prev.map(d => d.id === updated.id ? updated : d));
+    }
   };
 
   const handleScenarioChange = async (scenario: string) => {
@@ -242,8 +265,32 @@ const App: React.FC = () => {
             // Deep copy parameters
             const newParams = JSON.parse(JSON.stringify(activeDevice.parameters));
             
-            // Apply logic based on scenario
-            if (scenario === 'High Load') {
+            // Check if there is a custom AI config for this scenario
+            if (activeDevice.scenario_configs && activeDevice.scenario_configs[scenario]) {
+                 const config = activeDevice.scenario_configs[scenario];
+                 if (config.parameter_updates) {
+                     config.parameter_updates.forEach((update: any) => {
+                         const param = newParams.find((p: any) => p.id === update.param_id);
+                         if (param) {
+                             if (!param.error_config) param.error_config = {};
+                             
+                             if (update.update_type === 'drift') {
+                                 param.error_config.drift_rate = update.drift_rate;
+                             }
+                             if (update.noise_std_dev) {
+                                 param.error_config.noise_std_dev = update.noise_std_dev;
+                             }
+                             if (update.anomaly_probability) {
+                                 param.error_config.anomaly_probability = update.anomaly_probability;
+                             }
+                             if (update.update_type === 'set' && update.value !== undefined) {
+                                 param.min_value = update.value;
+                                 param.max_value = update.value;
+                             }
+                         }
+                     });
+                 }
+            } else if (scenario === 'High Load') {
                 newParams.forEach((p: any) => {
                     if (p.type === '数值') { // ParameterType.NUMBER
                         p.min_value = (p.min_value || 0) * 1.2;
@@ -278,8 +325,22 @@ const App: React.FC = () => {
                 });
             }
 
-            // Send update to backend
-            await backendService.updateDevice(activeDevice.id, { parameters: newParams });
+            // Send update to backend (Must send full object for PUT)
+            // CRITICAL: Ensure we send the UPDATED currentScenario, otherwise it reverts
+            const payload: any = { 
+                ...activeDevice, 
+                current_scenario: scenario, // Backend expects snake_case
+                parameters: newParams 
+            };
+            
+            if (activeDevice.backendType) {
+                payload.type = activeDevice.backendType;
+            }
+            // Remove frontend-only fields
+            if (payload.metrics) delete payload.metrics;
+            if (payload.currentScenario) delete payload.currentScenario; // Remove frontend key
+            
+            await backendService.updateDevice(activeDevice.id, payload);
             
             // Refresh device list to reflect changes
             const backendDevices = await backendService.fetchDevices();
@@ -346,18 +407,34 @@ const App: React.FC = () => {
     }
   };
 
+  // --- Theme Classes ---
+  const isDark = theme === 'dark';
+  const bgClass = isDark ? 'bg-black text-slate-200' : 'bg-slate-50 text-slate-800';
+  const sidebarClass = isDark ? 'bg-black border-slate-800' : 'bg-white border-slate-200 shadow-sm';
+  const mainClass = isDark ? 'bg-black' : 'bg-slate-50';
+  const headerClass = isDark ? 'bg-black/50 border-slate-800' : 'bg-white/80 border-slate-200 shadow-sm';
+  const cardClass = isDark ? 'bg-black border-slate-800' : 'bg-white border-slate-200 shadow-sm';
+  const buttonClass = isDark ? 'text-slate-400 hover:bg-slate-900 hover:text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-blue-600';
+  const activeBtnClass = 'bg-blue-600 text-white shadow-lg shadow-blue-900/20';
+  
+  // Helper for sub-components (metrics items, etc.)
+  const itemClass = isDark ? 'bg-slate-900/30 border-slate-800' : 'bg-slate-50 border-slate-200';
+  const textMuted = isDark ? 'text-slate-500' : 'text-slate-400';
+  const textPrimary = isDark ? 'text-white' : 'text-slate-800';
+  const barBg = isDark ? 'bg-slate-800' : 'bg-slate-200';
+
   return (
-    <div className="w-screen h-screen bg-slate-950 text-slate-200 overflow-hidden font-sans flex">
+    <div className={`w-screen h-screen ${bgClass} overflow-hidden font-sans flex transition-colors duration-300`}>
       
       {/* --- Sidebar --- */}
       <aside 
-        className={`bg-slate-900 border-r border-slate-800 flex flex-col transition-all duration-300 ${
+        className={`${sidebarClass} border-r flex flex-col transition-all duration-300 ${
           isSidebarCollapsed ? 'w-16' : 'w-64'
         }`}
       >
         {/* Sidebar Header */}
         <div 
-            className="h-14 flex items-center justify-between px-4 border-b border-slate-800 shrink-0 cursor-pointer hover:bg-slate-800/50 transition-colors"
+            className={`h-14 flex items-center justify-between px-4 border-b ${isDark ? 'border-slate-800 hover:bg-slate-800/50' : 'border-slate-200 hover:bg-slate-50'} shrink-0 cursor-pointer transition-colors`}
             onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
             title="Toggle Sidebar"
         >
@@ -373,8 +450,8 @@ const App: React.FC = () => {
                 onClick={() => setCurrentView('dashboard')}
                 className={`flex items-center gap-3 p-2 rounded-md transition-colors text-sm ${
                     currentView === 'dashboard' 
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' 
-                    : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                    ? activeBtnClass
+                    : buttonClass
                 } ${isSidebarCollapsed ? 'justify-center' : ''}`}
                 title={dict.dashboard}
             >
@@ -386,8 +463,8 @@ const App: React.FC = () => {
                 onClick={() => setCurrentView('realtime')}
                 className={`flex items-center gap-3 p-2 rounded-md transition-colors text-sm ${
                     currentView === 'realtime' 
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' 
-                    : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                    ? activeBtnClass
+                    : buttonClass
                 } ${isSidebarCollapsed ? 'justify-center' : ''}`}
                 title={dict.monitorTitle || 'Real-time Monitor'}
             >
@@ -399,17 +476,32 @@ const App: React.FC = () => {
                 onClick={() => setCurrentView('playback')}
                 className={`flex items-center gap-3 p-2 rounded-md transition-colors text-sm ${
                     currentView === 'playback' 
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' 
-                    : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                    ? activeBtnClass
+                    : buttonClass
                 } ${isSidebarCollapsed ? 'justify-center' : ''}`}
                 title={dict.playbackTitle || 'Historical Playback'}
             >
                 <Play size={18} />
                 {!isSidebarCollapsed && <span>{dict.playbackTitle || 'Playback'}</span>}
             </button>
+
+            <button
+                onClick={() => setCurrentView('monitor')}
+                className={`flex items-center gap-3 p-2 rounded-md transition-colors text-sm ${
+                    currentView === 'monitor' 
+                    ? activeBtnClass
+                    : buttonClass
+                } ${isSidebarCollapsed ? 'justify-center' : ''}`}
+                title={dict.simulationTitle || 'Simulation'}
+            >
+                <Box size={18} />
+                {!isSidebarCollapsed && <span>{dict.simulationTitle || 'Simulation'}</span>}
+            </button>
             
-            <div className="h-px bg-slate-800 my-2 mx-2" />
-            {!isSidebarCollapsed && <div className="text-xs font-bold text-slate-500 px-3 mb-1 uppercase tracking-wider">{dict.systemSettingsGroup}</div>}
+            <div className={`h-px ${isDark ? 'bg-slate-800' : 'bg-slate-200'} my-2 mx-2`} />
+            
+            {/* Basic Settings Group */}
+            {!isSidebarCollapsed && <div className="text-xs font-bold text-slate-500 px-3 mb-1 uppercase tracking-wider">{dict.basicSettingsGroup}</div>}
 
             <button
                 onClick={() => {
@@ -418,8 +510,8 @@ const App: React.FC = () => {
                 }}
                 className={`flex items-center gap-3 p-2 rounded-md transition-colors text-sm ${
                     currentView === 'devices' 
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' 
-                    : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                    ? activeBtnClass
+                    : buttonClass
                 } ${isSidebarCollapsed ? 'justify-center' : ''}`}
                 title={dict.deviceConfig}
             >
@@ -433,14 +525,84 @@ const App: React.FC = () => {
                 }}
                 className={`flex items-center gap-3 p-2 rounded-md transition-colors text-sm ${
                     currentView === 'categories' 
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' 
-                    : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                    ? activeBtnClass
+                    : buttonClass
                 } ${isSidebarCollapsed ? 'justify-center' : ''}`}
                 title={dict.categoryConfig}
             >
                 <Layers size={18} />
                 {!isSidebarCollapsed && <span>{dict.categoryConfig}</span>}
             </button>
+
+            <button
+                onClick={() => {
+                    setCurrentView('scenarios');
+                    if (simulationMode !== 'Backend') setSimulationMode('Backend');
+                }}
+                className={`flex items-center gap-3 p-2 rounded-md transition-colors text-sm ${
+                    currentView === 'scenarios' 
+                    ? activeBtnClass
+                    : buttonClass
+                } ${isSidebarCollapsed ? 'justify-center' : ''}`}
+                title={dict.scenarioConfig || 'Scenario Config'}
+            >
+                <Sliders size={18} />
+                {!isSidebarCollapsed && <span>{dict.scenarioConfig || 'Scenario Config'}</span>}
+            </button>
+
+            <button
+                onClick={() => {
+                    setCurrentView('visual_models');
+                    if (simulationMode !== 'Backend') setSimulationMode('Backend');
+                }}
+                className={`flex items-center gap-3 p-2 rounded-md transition-colors text-sm ${
+                    currentView === 'visual_models' 
+                    ? activeBtnClass
+                    : buttonClass
+                } ${isSidebarCollapsed ? 'justify-center' : ''}`}
+                title={dict.visualModelConfig || 'Visual Model Config'}
+            >
+                <Box size={18} />
+                {!isSidebarCollapsed && <span>{dict.visualModelConfig || 'Visual Model Config'}</span>}
+            </button>
+            
+            <div className="h-2" />
+
+            {/* System Settings Group */}
+            {!isSidebarCollapsed && <div className="text-xs font-bold text-slate-500 px-3 mb-1 uppercase tracking-wider">{dict.systemSettingsGroup}</div>}
+            
+            <button
+                onClick={() => {
+                    setCurrentView('parameters');
+                    if (simulationMode !== 'Backend') setSimulationMode('Backend');
+                }}
+                className={`flex items-center gap-3 p-2 rounded-md transition-colors text-sm ${
+                    currentView === 'parameters' 
+                    ? activeBtnClass
+                    : buttonClass
+                } ${isSidebarCollapsed ? 'justify-center' : ''}`}
+                title={dict.parameterSettings}
+            >
+                <Sliders size={18} />
+                {!isSidebarCollapsed && <span>{dict.parameterSettings}</span>}
+            </button>
+
+            <button
+                onClick={() => {
+                    setCurrentView('llm');
+                    if (simulationMode !== 'Backend') setSimulationMode('Backend');
+                }}
+                className={`flex items-center gap-3 p-2 rounded-md transition-colors text-sm ${
+                    currentView === 'llm' 
+                    ? activeBtnClass
+                    : buttonClass
+                } ${isSidebarCollapsed ? 'justify-center' : ''}`}
+                title={dict.llmSettings}
+            >
+                <Sparkles size={18} />
+                {!isSidebarCollapsed && <span>{dict.llmSettings}</span>}
+            </button>
+
             <button
                 onClick={() => {
                     setCurrentView('system');
@@ -448,8 +610,8 @@ const App: React.FC = () => {
                 }}
                 className={`flex items-center gap-3 p-2 rounded-md transition-colors text-sm ${
                     currentView === 'system' 
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' 
-                    : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                    ? activeBtnClass
+                    : buttonClass
                 } ${isSidebarCollapsed ? 'justify-center' : ''}`}
                 title="Connect Settings"
             >
@@ -458,57 +620,11 @@ const App: React.FC = () => {
             </button>
         </div>
 
-        {/* Device List */}
-        <div className="flex-1 overflow-y-auto py-4 px-2 space-y-1 no-scrollbar">
-            {!isSidebarCollapsed && <div className="text-xs font-bold text-slate-500 px-3 mb-2 uppercase tracking-wider">{dict.devices}</div>}
-            
-            {devices.map(device => (
-                <button
-                    key={device.id}
-                    onClick={() => {
-                        setActiveDeviceId(device.id);
-                        if (currentView !== 'playback' && currentView !== 'realtime') {
-                            setCurrentView('monitor');
-                        }
-                    }}
-                    className={`w-full flex items-center gap-3 p-2 rounded-md transition-colors text-sm whitespace-nowrap overflow-hidden ${
-                        activeDeviceId === device.id && (currentView === 'monitor' || currentView === 'playback' || currentView === 'realtime')
-                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' 
-                        : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                    } ${isSidebarCollapsed ? 'justify-center' : ''}`}
-                    title={isSidebarCollapsed ? device.name : ''}
-                >
-                    <span className="shrink-0">{getDeviceIcon(device.type)}</span>
-                    {!isSidebarCollapsed && <span className="truncate">{device.name}</span>}
-                    
-                    {/* Status Indicator */}
-                    {!isSidebarCollapsed && (
-                        <span 
-                            className={`w-2 h-2 rounded-full ml-auto ${
-                                device.status === 'running' 
-                                ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' 
-                                : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.4)]'
-                            }`} 
-                            title={device.status === 'running' ? 'Running' : 'Stopped'}
-                        />
-                    )}
-                </button>
-            ))}
-
-            <button 
-                onClick={() => setIsModalOpen(true)}
-                className={`w-full flex items-center gap-3 p-2 mt-4 rounded-md border border-dashed border-slate-700 text-slate-500 hover:text-blue-400 hover:border-blue-500/50 transition-colors text-sm ${
-                    isSidebarCollapsed ? 'justify-center' : ''
-                }`}
-                title={dict.addDevice}
-            >
-                <Plus size={18} />
-                {!isSidebarCollapsed && <span>{dict.addDevice}</span>}
-            </button>
-        </div>
+        {/* Spacer to push footer to bottom */}
+        <div className="flex-1" />
 
         {/* Settings Footer */}
-        <div className="p-2 border-t border-slate-800 space-y-2">
+        <div className={`p-2 border-t ${isDark ? 'border-slate-800' : 'border-slate-200'} space-y-2`}>
             {!isSidebarCollapsed && <div className="text-xs font-bold text-slate-500 px-2 mb-1 uppercase tracking-wider">{dict.simulationMode}</div>}
             
             <button
@@ -518,7 +634,7 @@ const App: React.FC = () => {
                   else setSimulationMode('AI');
                 }}
                 className={`w-full flex items-center gap-3 p-2 rounded-md transition-colors text-sm ${
-                    isSidebarCollapsed ? 'justify-center' : 'bg-slate-800/50 hover:bg-slate-800'
+                    isSidebarCollapsed ? 'justify-center' : (isDark ? 'bg-slate-800/50 hover:bg-slate-800' : 'bg-slate-100 hover:bg-slate-200')
                 }`}
                 title={`Current Mode: ${simulationMode}`}
             >
@@ -528,7 +644,7 @@ const App: React.FC = () => {
                 
                 {!isSidebarCollapsed && (
                     <div className="flex flex-col items-start leading-none">
-                        <span className="text-slate-200">
+                        <span className={isDark ? 'text-slate-200' : 'text-slate-700'}>
                             {simulationMode === 'AI' ? dict.modeAI.split(' ')[0] : 
                              simulationMode === 'Local' ? dict.modeLocal.split(' ')[0] : 'Backend'}
                         </span>
@@ -540,198 +656,63 @@ const App: React.FC = () => {
                 )}
             </button>
 
-            <button 
-                 onClick={() => setLanguage(l => l === 'en' ? 'zh' : 'en')}
-                 className={`w-full flex items-center gap-3 p-2 rounded-md hover:bg-slate-800 transition-colors text-sm text-slate-400 ${
-                    isSidebarCollapsed ? 'justify-center' : ''
-                 }`}
-                 title="Switch Language"
-            >
-                 <Globe size={18} />
-                 {!isSidebarCollapsed && <span>{language === 'en' ? 'English' : '中文'}</span>}
-            </button>
+            {/* Language & Theme Toggles */}
+            <div className={`flex ${isSidebarCollapsed ? 'flex-col gap-2' : 'gap-2'}`}>
+                <button
+                    onClick={() => setLanguage(l => l === 'en' ? 'zh' : 'en')}
+                    className={`flex-1 flex items-center justify-center gap-2 p-2 rounded-md ${isDark ? 'bg-slate-800/30 hover:bg-slate-800 text-slate-400 hover:text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900'} transition-colors text-xs font-medium`}
+                    title="Switch Language"
+                >
+                    {language === 'en' ? 'EN' : '中'}
+                </button>
+                <button
+                    onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
+                    className={`flex-1 flex items-center justify-center gap-2 p-2 rounded-md ${isDark ? 'bg-slate-800/30 hover:bg-slate-800 text-slate-400 hover:text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900'} transition-colors`}
+                    title="Toggle Theme"
+                >
+                    {isDark ? <Moon size={14} /> : <Sun size={14} />}
+                </button>
+            </div>
         </div>
       </aside>
 
       {/* --- Main Content Area --- */}
-      <main className="flex-1 h-full overflow-hidden p-3 flex flex-col gap-3">
+      <main className={`flex-1 h-full overflow-hidden p-3 flex flex-col gap-3 ${mainClass} relative`}>
         
-        {/* --- Header Section --- */}
+        {/* Background Decoration */}
+         {isDark && (
+             <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-[500px] bg-gradient-to-b from-blue-500/5 to-transparent" />
+                <div className="absolute -top-[200px] -right-[200px] w-[600px] h-[600px] bg-indigo-500/10 rounded-full blur-[100px]" />
+                <div className="absolute bottom-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-slate-800 to-transparent" />
+             </div>
+         )}
+         
+        {/* --- Header & Dynamic View Content for Monitor --- */}
         {currentView === 'monitor' && (
-        <header className="shrink-0 bg-slate-900/50 border border-slate-800 rounded-lg p-3 flex items-center justify-between">
-            {/* Left: Device Info */}
-            <div className="flex items-center gap-4">
-                <div className="p-2 bg-blue-500/10 rounded-lg border border-blue-500/20 text-blue-400">
-                    {getDeviceIcon(activeDevice.type)}
-                </div>
-                <div>
-                    <h2 className="text-lg font-bold text-white leading-none">{activeDevice.name}</h2>
-                    <div className="flex items-center gap-2 mt-1">
-                        <span className="text-xs text-slate-500 font-mono px-1.5 py-0.5 bg-slate-950 rounded border border-slate-800">{activeDevice.type}</span>
-                        <span className="text-xs text-slate-500">{activeDevice.description}</span>
-                    </div>
-                </div>
-            </div>
-
-            {/* Right: Controls */}
-            <div className="flex items-center gap-3">
-                {/* Scenario Selector */}
-                <div className="flex items-center gap-2 bg-slate-950/50 px-2 py-1.5 rounded border border-slate-800">
-                    <span className="text-xs text-slate-500 uppercase font-bold">{dict.scenario}:</span>
-                    <select 
-                        value={activeDevice.currentScenario}
-                        onChange={e => handleScenarioChange(e.target.value)}
-                        className="bg-transparent text-sm text-slate-300 outline-none font-medium cursor-pointer"
-                    >
-                        {activeDevice.scenarios.map(s => (
-                            <option key={s} value={s} className="bg-slate-900">{s}</option>
-                        ))}
-                    </select>
-                </div>
-
-                {/* Start/Stop Button */}
-                <button 
-                    onClick={toggleDeviceStatus}
-                    className={`flex items-center gap-2 px-4 py-1.5 rounded-md font-bold transition-all shadow-lg ${
-                        activeDevice.status === 'running' 
-                        ? 'bg-red-500/10 text-red-500 border border-red-500/50 hover:bg-red-500 hover:text-white' 
-                        : 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-emerald-500/20'
-                    }`}
-                >
-                    {activeDevice.status === 'running' ? <Square size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
-                    {activeDevice.status === 'running' ? dict.stop : dict.start}
-                </button>
-            </div>
-        </header>
+            <DeviceMonitorView 
+                activeDevice={activeDevice}
+                latestData={latestData}
+                history={history}
+                logs={logs}
+                dict={dict}
+                theme={theme}
+                simulationMode={simulationMode}
+                devices={devices}
+                metricsViewMode={metricsViewMode}
+                setMetricsViewMode={setMetricsViewMode}
+                handleScenarioChange={handleScenarioChange}
+                toggleDeviceStatus={toggleDeviceStatus}
+                handleExportHistory={handleExportHistory}
+                lang={language}
+                onUpdateDevice={updateDevice}
+            />
         )}
 
-        {/* --- Dynamic View Content --- */}
+        {/* --- Container for Other Views --- */}
+        {currentView !== 'monitor' && (
         <div className="flex-1 min-h-0 flex gap-3 overflow-hidden">
             
-            {/* Case 1: Monitor View (Digital Twin + Charts + Logs) */}
-            {currentView === 'monitor' && (
-                <>
-                    {/* Left Column: 3D View & Telemetry */}
-                    <div className="flex-[2] flex flex-col gap-3 min-w-0">
-                        {/* 3D Digital Twin */}
-                        <div className="flex-[3] bg-slate-900/50 rounded-lg border border-slate-800 overflow-hidden relative group">
-                            <div className="absolute top-3 left-3 z-10 bg-black/40 backdrop-blur px-2 py-1 rounded text-xs font-bold text-slate-300 flex items-center gap-2 border border-white/10">
-                                <Box size={14} className="text-blue-400" /> {dict.digitalTwin}
-                            </div>
-                            <DigitalTwin 
-                                device={activeDevice}
-                                latestData={latestData}
-                                dict={dict}
-                            />
-                        </div>
-
-                        {/* Telemetry Charts */}
-                        <div className="flex-[2] min-h-0">
-                             <TelemetryChart 
-                                 device={activeDevice}
-                                 data={history}
-                                 dict={dict}
-                                 onExport={handleExportHistory}
-                             />
-                        </div>
-                    </div>
-
-                    {/* Right Column: Metrics Cards & Logs */}
-                    <div className="flex-1 min-w-[300px] flex flex-col gap-3">
-                        
-                        {/* Metrics Cards (Restored & Visible) */}
-                        <div className="flex-1 bg-slate-900/50 rounded-lg border border-slate-800 p-3 flex flex-col min-h-0">
-                            <div className="flex justify-between items-center mb-2 shrink-0">
-                                <div className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                                    <LayoutGrid size={14} /> {dict.metrics || 'Metrics'}
-                                </div>
-                                <div className="flex bg-slate-800 rounded p-0.5">
-                                    <button 
-                                        onClick={() => setMetricsViewMode('grid')}
-                                        className={`p-1 rounded ${metricsViewMode === 'grid' ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'}`}
-                                        title="Grid View"
-                                    >
-                                        <LayoutGrid size={12} />
-                                    </button>
-                                    <button 
-                                        onClick={() => setMetricsViewMode('list')}
-                                        className={`p-1 rounded ${metricsViewMode === 'list' ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'}`}
-                                        title="List View"
-                                    >
-                                        <List size={12} />
-                                    </button>
-                                </div>
-                            </div>
-                            
-                            <div className={`overflow-y-auto pr-1 custom-scrollbar ${metricsViewMode === 'grid' ? 'grid grid-cols-2 gap-2' : 'flex flex-col gap-1'}`}>
-                                {activeDevice.metrics.map(metric => {
-                                    // Fix: metrics is a Record<string, number>, keyed by metric.id
-                                    const currentVal = latestData?.metrics ? (latestData.metrics[metric.id] ?? 0) : 0;
-                                    
-                                    if (metricsViewMode === 'list') {
-                                        return (
-                                            <div key={metric.id} className="bg-slate-950/50 rounded px-3 py-2 border border-slate-800/50 flex items-center justify-between">
-                                                <div className="text-xs text-slate-400 truncate w-24" title={metric.name}>{metric.name}</div>
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-16 h-1 bg-slate-900 rounded overflow-hidden">
-                                                        <div 
-                                                            className="h-full bg-blue-500/50 transition-all duration-500"
-                                                            style={{ width: `${Math.min(100, (currentVal / metric.max) * 100)}%` }}
-                                                        />
-                                                    </div>
-                                                    <div className="text-sm font-mono font-bold text-white w-16 text-right">
-                                                        {currentVal.toFixed(1)} <span className="text-[10px] text-slate-500 font-sans">{metric.unit}</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        );
-                                    }
-
-                                    return (
-                                        <div key={metric.id} className="bg-slate-950/50 rounded p-2 border border-slate-800/50 flex flex-col">
-                                            <div className="text-xs text-slate-500 mb-1 truncate" title={metric.name}>{metric.name}</div>
-                                            <div className="text-lg font-mono font-bold text-white mb-1">
-                                                {currentVal.toFixed(1)} <span className="text-xs text-slate-500 font-sans">{metric.unit}</span>
-                                            </div>
-                                            <div className="w-full h-1 bg-slate-900 rounded overflow-hidden mt-auto">
-                                                <div 
-                                                    className="h-full bg-blue-500/50 transition-all duration-500"
-                                                    style={{ width: `${Math.min(100, (currentVal / metric.max) * 100)}%` }}
-                                                />
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-
-                        {/* Logs */}
-                        <div className="flex-1 min-h-0">
-                             <LogViewer logs={logs} dict={dict} />
-                        </div>
-                        
-                        {/* System Info Card */}
-                        <div className="bg-slate-900/50 rounded-lg border border-slate-800 p-4 h-auto shrink-0">
-                            <h3 className="text-xs font-bold text-slate-500 uppercase mb-3 tracking-wider">{dict.systemStatusTitle}</h3>
-                            <div className="space-y-2 text-sm">
-                                <div className="flex justify-between">
-                                    <span className="text-slate-400">{dict.simulationMode}:</span>
-                                    <span className="text-blue-400 font-bold">{simulationMode}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-slate-400">{dict.activeDevices}:</span>
-                                    <span className="text-white font-mono">{devices.filter(d => d.status === 'running').length} / {devices.length}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-slate-400">{dict.uptime}:</span>
-                                    <span className="text-emerald-400 font-mono">00:12:45</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </>
-            )}
-
             {/* Case 2: Dashboard View */}
             {currentView === 'dashboard' && (
                 <div className="flex-1 min-w-0">
@@ -742,6 +723,8 @@ const App: React.FC = () => {
                             setCurrentView('monitor');
                         }}
                         dict={dict}
+                        theme={theme}
+                        lang={language}
                     />
                 </div>
             )}
@@ -753,6 +736,7 @@ const App: React.FC = () => {
                         activeDeviceId={activeDeviceId}
                         onDeviceChange={setActiveDeviceId}
                         dict={dict} 
+                        theme={theme}
                     />
                 </div>
             )}
@@ -765,6 +749,7 @@ const App: React.FC = () => {
                         onDeviceChange={setActiveDeviceId}
                         history={history}
                         dict={dict} 
+                        theme={theme}
                     />
                 </div>
             )}
@@ -772,23 +757,67 @@ const App: React.FC = () => {
             {/* Case 3: Manager Views */}
             {currentView === 'devices' && (
                 <div className="flex-1">
-                    <DeviceManager onClose={() => setCurrentView('dashboard')} dict={dict} />
+                    <DeviceManager 
+                        onClose={() => setCurrentView('dashboard')} 
+                        onNavigateToMonitor={(deviceId) => {
+                            setActiveDeviceId(deviceId);
+                            setCurrentView('realtime');
+                        }}
+                        onPreview={(deviceId) => {
+                            setActiveDeviceId(deviceId);
+                            setCurrentView('monitor');
+                        }}
+                        dict={dict} 
+                        theme={theme} 
+                        lang={language}
+                    />
                 </div>
             )}
 
             {currentView === 'categories' && (
                 <div className="flex-1">
-                    <CategoryManager onClose={() => setCurrentView('dashboard')} dict={dict} />
+                    <CategoryManager onClose={() => setCurrentView('dashboard')} dict={dict} theme={theme} lang={language} />
+                </div>
+            )}
+
+            {currentView === 'scenarios' && (
+                <div className="flex-1">
+                    <ScenarioManager 
+                        onClose={() => setCurrentView('dashboard')} 
+                        dict={dict} 
+                        theme={theme} 
+                        lang={language}
+                        onDevicesUpdate={fetchDevs}
+                    />
+                </div>
+            )}
+
+            {currentView === 'visual_models' && (
+                <div className="flex-1">
+                    <VisualModelManager onClose={() => setCurrentView('dashboard')} dict={dict} theme={theme} lang={language} />
                 </div>
             )}
 
             {currentView === 'system' && (
                 <div className="flex-1">
-                    <SystemManager onClose={() => setCurrentView('dashboard')} dict={dict} />
+                    <SystemManager onClose={() => setCurrentView('dashboard')} dict={dict} theme={theme} />
+                </div>
+            )}
+
+            {currentView === 'parameters' && (
+                <div className="flex-1">
+                    <ParameterManager onClose={() => setCurrentView('dashboard')} dict={dict} theme={theme} />
+                </div>
+            )}
+
+            {currentView === 'llm' && (
+                <div className="flex-1">
+                    <LlmManager onClose={() => setCurrentView('dashboard')} dict={dict} theme={theme} />
                 </div>
             )}
 
         </div>
+        )}
       </main>
 
       {/* --- Modals --- */}
@@ -797,6 +826,7 @@ const App: React.FC = () => {
         onClose={() => setIsModalOpen(false)} 
         onSave={handleAddDevice}
         dict={dict}
+        theme={theme}
       />
 
     </div>

@@ -3,11 +3,13 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Center, Grid, ContactShadows, Sparkles, useCursor } from '@react-three/drei';
 import * as THREE from 'three';
 import { Device, SimulationStep } from '../types';
+import { Custom3DModel } from './Custom3DModel';
 
 interface DigitalTwinProps {
   device: Device;
   latestData: SimulationStep | null;
   dict: any;
+  theme?: 'dark' | 'light';
 }
 
 // --- Materials & Shared Styles ---
@@ -424,27 +426,26 @@ const GenericDevice: React.FC = () => {
 };
 
 // --- Main Component ---
-export const DigitalTwin: React.FC<DigitalTwinProps> = ({ device, latestData, dict }) => {
+export const DigitalTwin: React.FC<DigitalTwinProps> = ({ device, latestData, dict, theme = 'dark' }) => {
   const [hovered, setHover] = useState(false);
+  const isDark = theme === 'dark';
   useCursor(hovered);
 
   const renderModel = () => {
-    // Priority 1: Custom/Legacy Mappings
-    switch (device.type) {
-        case 'plasma_cutter_2025': return <CutterModel data={{
-            ...latestData?.metrics,
-            gasPressure: latestData?.metrics?.gas_pressure,
-            current: latestData?.metrics?.arc_voltage ? latestData.metrics.arc_voltage / 10 : 0,
-            x_pos: latestData?.metrics?.cutting_speed ? (Date.now() / 10) % 1000 : 500 
-        }} />;
+    // 1. Check for Custom Visual Config (from AI)
+    if (device.visual_config && device.visual_config.components) {
+        return <Custom3DModel config={device.visual_config} />;
     }
 
-    // Priority 2: Explicit Visual Model
-    const modelType = device.visual_model || device.type;
+    // 2. Fallback to Type-based selection
+    const type = device.visual_model || device.type;
+    const normalizedType = type.toLowerCase();
     
-    // Normalize
-    const normalizedType = modelType.toLowerCase();
-
+    // Explicit Custom type check
+    if (normalizedType === 'custom' && device.visual_config?.components) {
+        return <Custom3DModel config={device.visual_config} />;
+    }
+    
     if (normalizedType.includes('generator')) return <GeneratorModel data={latestData?.metrics} />;
     if (normalizedType.includes('cutter')) return <CutterModel data={latestData?.metrics} />;
     if (normalizedType.includes('welder')) return <GeneratorModel data={latestData?.metrics} />;
@@ -454,7 +455,7 @@ export const DigitalTwin: React.FC<DigitalTwinProps> = ({ device, latestData, di
 
   return (
     <div 
-        className="w-full h-full bg-slate-900 rounded-lg overflow-hidden border border-slate-800 relative shadow-inner"
+        className={`w-full h-full ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'} rounded-lg overflow-hidden border relative shadow-inner`}
         onPointerOver={() => setHover(true)}
         onPointerOut={() => setHover(false)}
     >
@@ -473,7 +474,7 @@ export const DigitalTwin: React.FC<DigitalTwinProps> = ({ device, latestData, di
       </div>
 
       <Canvas shadows camera={{ position: [5, 4, 6], fov: 40 }} dpr={[1, 2]}>
-        <color attach="background" args={['#0f172a']} />
+        <color attach="background" args={[isDark ? '#020617' : '#f8fafc']} />
         
         {/* Lighting & Environment */}
         <ambientLight intensity={0.5} />
@@ -496,8 +497,8 @@ export const DigitalTwin: React.FC<DigitalTwinProps> = ({ device, latestData, di
         <Grid 
             position={[0, -1.11, 0]} 
             args={[20, 20]} 
-            cellColor="#1e293b" 
-            sectionColor="#334155" 
+            cellColor={isDark ? "#1e293b" : "#cbd5e1"} 
+            sectionColor={isDark ? "#334155" : "#94a3b8"} 
             fadeDistance={20} 
         />
 

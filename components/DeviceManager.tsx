@@ -3,16 +3,21 @@ import {
   BackendDevice, BackendParameter, ParameterType, GenerationMode, backendService, Category 
 } from '../services/backendService';
 import { 
-  Plus, Trash2, Edit, Save, X, Settings, RefreshCw, Search, Filter, Upload, Download, Play, Square, Activity, Eraser, Database, Clock 
+  Plus, Trash2, Edit, Save, X, Settings, RefreshCw, Search, Filter, Upload, Download, Play, Square, Activity, Eraser, Database, Clock, Eye, Sparkles, Loader2 
 } from 'lucide-react';
 import { SimulationStep } from '../types';
+import { generateBatchDevices } from '../services/geminiService';
 
 interface DeviceManagerProps {
   onClose: () => void;
+  onNavigateToMonitor?: (deviceId: string) => void;
+  onPreview?: (deviceId: string) => void;
   dict: any;
+  theme?: 'dark' | 'light';
+  lang?: string;
 }
 
-export const DeviceManager: React.FC<DeviceManagerProps> = ({ onClose, dict }) => {
+export const DeviceManager: React.FC<DeviceManagerProps> = ({ onClose, onNavigateToMonitor, onPreview, dict, theme = 'dark', lang = 'zh' }) => {
   const [devices, setDevices] = useState<BackendDevice[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -25,6 +30,28 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({ onClose, dict }) =
   const [deviceData, setDeviceData] = useState<Record<string, SimulationStep>>({});
   const [selectedDeviceIds, setSelectedDeviceIds] = useState<Set<string>>(new Set());
   const [isSelectMode, setIsSelectMode] = useState(false);
+  const [isAiBatchOpen, setIsAiBatchOpen] = useState(false);
+  const [aiDescription, setAiDescription] = useState('');
+  const [isGeneratingBatch, setIsGeneratingBatch] = useState(false);
+
+  const isDark = theme === 'dark';
+  const bgClass = isDark ? 'bg-slate-900' : 'bg-white';
+  const bgSubClass = isDark ? 'bg-slate-900' : 'bg-slate-50';
+  const borderClass = isDark ? 'border-slate-700' : 'border-slate-200';
+  const textPrimary = isDark ? 'text-white' : 'text-slate-900';
+  const textSecondary = isDark ? 'text-slate-400' : 'text-slate-500';
+  const textMuted = isDark ? 'text-slate-500' : 'text-slate-400';
+  const inputBgClass = isDark ? 'bg-slate-900' : 'bg-white';
+  const cardClass = isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200 shadow-sm';
+  const hoverClass = isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-100';
+  const headerBgClass = isDark ? 'bg-slate-900' : 'bg-slate-50';
+  const selectedClass = isDark ? 'bg-blue-900/20 border-blue-500' : 'bg-blue-50 border-blue-500';
+
+  // Compute unique types from devices to ensure all are filterable
+  const uniqueTypes = Array.from(new Set(devices.map(d => d.type))).sort();
+  // Merge known categories with unique types found in devices
+  const allCategoryCodes = new Set(categories.map(c => c.code));
+  const unknownTypes = uniqueTypes.filter(t => !allCategoryCodes.has(t));
 
   const filteredDevices = devices.filter(d => {
       const matchesName = d.name.toLowerCase().includes(filterName.toLowerCase());
@@ -68,20 +95,7 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({ onClose, dict }) =
 
     pollData(); // Initial fetch
     const interval = setInterval(pollData, 3000); // Poll every 3s
-    const handleToggleStatus = async (device: BackendDevice) => {
-    const newStatus = device.status === 'running' ? 'stopped' : 'running';
-    try {
-        await backendService.updateDeviceStatus(device.id, newStatus);
-        // Optimistic update
-        setDevices(prev => prev.map(d => d.id === device.id ? { ...d, status: newStatus } : d));
-    } catch (error) {
-        console.error('Failed to toggle status', error);
-        alert(dict.statusUpdateFailed || 'Failed to update status');
-        fetchData(); // Revert on error
-    }
-  };
-
-  return () => clearInterval(interval);
+    return () => clearInterval(interval);
   }, [devices]); // Re-run when devices list changes (status updates)
 
   const handleToggleStatus = async (device: BackendDevice) => {
@@ -153,6 +167,60 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({ onClose, dict }) =
         alert(dict.deleteFailed || 'Batch delete failed');
     } finally {
         setIsLoading(false);
+    }
+  };
+
+  const handleAiBatchGenerate = async () => {
+    if (!aiDescription) return;
+    setIsGeneratingBatch(true);
+    try {
+        const generatedDevices = await generateBatchDevices(aiDescription, lang);
+        
+        let successCount = 0;
+        for (const device of generatedDevices) {
+             const parameters = (device.metrics || []).map((m: any) => ({
+                 name: m.name,
+                 id: m.id,
+                 type: ParameterType.NUMBER,
+                 unit: m.unit,
+                 min_value: m.min,
+                 max_value: m.max,
+                 generation_mode: GenerationMode.RANDOM,
+                 is_tag: false
+             }));
+             
+             // Ensure at least one parameter
+             if (parameters.length === 0) {
+                 parameters.push({
+                     name: 'Value',
+                     id: 'val',
+                     type: ParameterType.NUMBER,
+                     min_value: 0,
+                     max_value: 100,
+                     generation_mode: GenerationMode.RANDOM,
+                     is_tag: false
+                 });
+             }
+
+             const newDevice: any = {
+                 ...device,
+                 parameters,
+                 sampling_rate: 1000,
+                 status: 'stopped'
+             };
+             
+             await backendService.createDevice(newDevice);
+             successCount++;
+        }
+        
+        alert(`AI Generated ${successCount} devices successfully.`);
+        setIsAiBatchOpen(false);
+        setAiDescription('');
+        fetchData();
+    } catch (error: any) {
+        alert("AI Batch Generation Failed: " + error.message);
+    } finally {
+        setIsGeneratingBatch(false);
     }
   };
 
@@ -288,27 +356,42 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({ onClose, dict }) =
   };
 
   return (
-    <div className="h-full flex flex-col bg-slate-900/50 rounded-lg border border-slate-800 overflow-hidden">
+    <div className={`h-full flex flex-col ${isDark ? 'bg-slate-900' : 'bg-slate-50'} rounded-lg border ${borderClass} overflow-hidden`}>
       {/* Header */}
-      <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900">
-        <h2 className="text-xl font-bold text-white flex items-center gap-2">
+      <div className={`p-4 border-b ${borderClass} flex justify-between items-center ${headerBgClass}`}>
+        <h2 className={`text-xl font-bold ${textPrimary} flex items-center gap-2`}>
           <Settings className="text-blue-500" />
           {dict.deviceManagement}
+          <span className={`text-sm font-normal ${textSecondary} ml-2`}>
+            ({filteredDevices.length} / {devices.length})
+          </span>
         </h2>
-        <div className="flex gap-2">
-          {isSelectMode ? (
+          <div className="flex gap-2">
+            <button 
+              onClick={() => setIsAiBatchOpen(true)}
+              className={`flex items-center gap-2 px-3 py-2 border rounded text-sm transition-colors ${
+                  isDark 
+                  ? 'bg-purple-900/30 hover:bg-purple-900/50 text-purple-400 border-purple-800' 
+                  : 'bg-purple-50 hover:bg-purple-100 text-purple-600 border-purple-200'
+              }`}
+              title={dict.aiBatchGeneration || "AI Batch Generation"}
+            >
+              <Sparkles size={16} />
+              {dict.aiBatchButton || "AI Batch"}
+            </button>
+            {isSelectMode ? (
               <div className="flex gap-2 animate-in fade-in slide-in-from-right-4 duration-300">
                   <button 
                     onClick={handleBatchDelete}
                     disabled={selectedDeviceIds.size === 0}
-                    className="flex items-center gap-2 bg-red-600 hover:bg-red-500 disabled:bg-slate-800 disabled:text-slate-500 text-white px-3 py-2 rounded text-sm transition-colors font-bold"
+                    className={`flex items-center gap-2 bg-red-600 hover:bg-red-500 disabled:${isDark ? 'bg-slate-800 text-slate-500' : 'bg-slate-200 text-slate-400'} text-white px-3 py-2 rounded text-sm transition-colors font-bold`}
                   >
                     <Trash2 size={16} />
                     {dict.deleteSelected || 'Delete Selected'} ({selectedDeviceIds.size})
                   </button>
                   <button 
                     onClick={() => { setIsSelectMode(false); setSelectedDeviceIds(new Set()); }}
-                    className="px-3 py-2 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded text-sm"
+                    className={`px-3 py-2 ${textSecondary} hover:${textPrimary} ${bgSubClass} ${hoverClass} rounded text-sm`}
                   >
                     {dict.cancel}
                   </button>
@@ -316,7 +399,7 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({ onClose, dict }) =
           ) : (
               <button 
                 onClick={() => setIsSelectMode(true)}
-                className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-2 rounded text-sm transition-colors border border-slate-700"
+                className={`flex items-center gap-2 ${bgSubClass} ${hoverClass} ${textSecondary} hover:${textPrimary} px-3 py-2 rounded text-sm transition-colors border ${borderClass}`}
                 title={dict.batchDelete || "Batch Delete"}
               >
                 <Trash2 size={16} />
@@ -326,7 +409,7 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({ onClose, dict }) =
 
           <button 
             onClick={fetchData} 
-            className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded"
+            className={`p-2 ${textSecondary} hover:${textPrimary} ${hoverClass} rounded`}
             title={dict.refresh}
           >
             <RefreshCw size={18} className={isLoading ? 'animate-spin' : ''} />
@@ -341,7 +424,7 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({ onClose, dict }) =
           />
           <button 
             onClick={handleImportClick}
-            className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-3 py-2 rounded text-sm transition-colors border border-slate-700"
+            className={`flex items-center gap-2 ${bgSubClass} ${hoverClass} ${isDark ? 'text-white' : 'text-slate-700'} px-3 py-2 rounded text-sm transition-colors border ${borderClass}`}
             title={dict.importDevices || "Batch Import Devices"}
           >
             <Upload size={16} />
@@ -350,7 +433,7 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({ onClose, dict }) =
 
           <button 
             onClick={handleExportClick}
-            className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-3 py-2 rounded text-sm transition-colors border border-slate-700"
+            className={`flex items-center gap-2 ${bgSubClass} ${hoverClass} ${isDark ? 'text-white' : 'text-slate-700'} px-3 py-2 rounded text-sm transition-colors border ${borderClass}`}
             title={dict.exportDevices || "Batch Export Devices"}
           >
             <Download size={16} />
@@ -368,16 +451,16 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({ onClose, dict }) =
       </div>
 
       {/* Filters */}
-      <div className="p-4 border-b border-slate-800 bg-slate-900/30 flex flex-wrap gap-4 items-center">
+      <div className={`p-4 border-b ${borderClass} ${isDark ? 'bg-slate-900' : 'bg-slate-100'} flex flex-wrap gap-4 items-center`}>
         {isSelectMode && (
-             <div className="flex items-center gap-3 bg-slate-800/80 px-3 py-2 rounded-full border border-blue-500/30">
+             <div className={`flex items-center gap-3 ${isDark ? 'bg-slate-900' : 'bg-white'} px-3 py-2 rounded-full border border-blue-500/30`}>
                 <input 
                     type="checkbox" 
                     checked={selectedDeviceIds.size === filteredDevices.length && filteredDevices.length > 0}
                     onChange={handleSelectAll}
-                    className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    className={`w-4 h-4 rounded ${isDark ? 'border-slate-600 bg-slate-800' : 'border-slate-300 bg-white'} text-blue-600 focus:ring-blue-500 cursor-pointer`}
                 />
-                <span className="text-sm text-white font-medium">
+                <span className={`text-sm ${textPrimary} font-medium`}>
                     {selectedDeviceIds.size === filteredDevices.length ? (dict.deselectAll || 'Deselect All') : (dict.selectAll || 'Select All')}
                 </span>
              </div>
@@ -389,7 +472,7 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({ onClose, dict }) =
                 value={filterName}
                 onChange={e => setFilterName(e.target.value)}
                 placeholder={dict.searchDevice || "Search devices..."}
-                className="w-full bg-slate-800 border border-slate-700 rounded-full pl-10 pr-4 py-2 text-sm text-white focus:border-blue-500 outline-none"
+                className={`w-full ${inputBgClass} border ${borderClass} rounded-full pl-10 pr-4 py-2 text-sm ${textPrimary} focus:border-blue-500 outline-none`}
             />
         </div>
         <div className="relative min-w-[200px]">
@@ -397,12 +480,19 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({ onClose, dict }) =
             <select 
                 value={filterCategory}
                 onChange={e => setFilterCategory(e.target.value)}
-                className="w-full bg-slate-800 border border-slate-700 rounded-full pl-10 pr-8 py-2 text-sm text-white focus:border-blue-500 outline-none appearance-none"
+                className={`w-full ${inputBgClass} border ${borderClass} rounded-full pl-10 pr-8 py-2 text-sm ${textPrimary} focus:border-blue-500 outline-none appearance-none`}
             >
                 <option value="">{dict.allCategories || "All Categories"}</option>
                 {categories.map(c => (
                     <option key={c.id} value={c.code}>{c.name} ({c.code})</option>
                 ))}
+                {unknownTypes.length > 0 && (
+                    <optgroup label="Other Types">
+                        {unknownTypes.map(t => (
+                            <option key={t} value={t}>{t}</option>
+                        ))}
+                    </optgroup>
+                )}
             </select>
         </div>
       </div>
@@ -415,7 +505,7 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({ onClose, dict }) =
                 key={device.id} 
                 className={`
                     relative p-4 rounded border transition-all group flex flex-col h-full
-                    ${selectedDeviceIds.has(device.id) ? 'bg-blue-900/20 border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.15)]' : 'bg-slate-800 border-slate-700 hover:border-slate-600'}
+                    ${selectedDeviceIds.has(device.id) ? selectedClass : `${cardClass} ${hoverClass}`}
                 `}
                 onClick={() => isSelectMode && toggleSelectDevice(device.id)}
             >
@@ -425,7 +515,7 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({ onClose, dict }) =
                         type="checkbox" 
                         checked={selectedDeviceIds.has(device.id)}
                         onChange={() => toggleSelectDevice(device.id)}
-                        className="w-5 h-5 rounded border-slate-600 bg-slate-900 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        className={`w-5 h-5 rounded ${isDark ? 'border-slate-600 bg-slate-900' : 'border-slate-300 bg-white'} text-blue-600 focus:ring-blue-500 cursor-pointer`}
                         onClick={(e) => e.stopPropagation()}
                       />
                   </div>
@@ -434,10 +524,10 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({ onClose, dict }) =
               <div className="flex justify-between items-start mb-2">
                 <div>
                   <div className="flex items-center gap-2">
-                     <div className="font-bold text-lg text-white">{device.name}</div>
+                     <div className={`font-bold text-lg ${textPrimary}`}>{device.name}</div>
                      <div className={`w-2 h-2 rounded-full ${device.status === 'running' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-600'}`}></div>
                   </div>
-                  <div className="text-xs text-slate-500 font-mono flex items-center gap-2">
+                  <div className={`text-xs ${textMuted} font-mono flex items-center gap-2`}>
                       {device.type}
                       {device.status === 'running' && (
                           <span className="text-[10px] text-emerald-400 bg-emerald-900/30 px-1.5 rounded flex items-center gap-1">
@@ -446,54 +536,33 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({ onClose, dict }) =
                       )}
                   </div>
                 </div>
-                <div className="flex gap-1">
-                  <button 
-                      onClick={() => handleToggleStatus(device)} 
-                      className={`p-1.5 rounded transition-colors ${device.status === 'running' ? 'text-emerald-400 hover:bg-emerald-900/30' : 'text-slate-400 hover:bg-slate-700'}`}
-                      title={device.status === 'running' ? dict.stop || 'Stop' : dict.start || 'Start'}
-                  >
-                    {device.status === 'running' ? <Square size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
-                  </button>
-                  <button onClick={() => openEdit(device)} className="p-1.5 text-blue-400 hover:bg-blue-900/30 rounded">
-                    <Edit size={16} />
-                  </button>
-                  <button onClick={() => setGeneratingDevice(device)} className="p-1.5 text-purple-400 hover:bg-purple-900/30 rounded" title={dict.generateData || 'Generate History'}>
-                    <Database size={16} />
-                  </button>
-                  <button onClick={() => setCleaningDevice(device)} className="p-1.5 text-amber-400 hover:bg-amber-900/30 rounded" title={dict.cleanData || 'Clean Data'}>
-                    <Eraser size={16} />
-                  </button>
-                  <button onClick={() => handleDelete(device.id)} className="p-1.5 text-red-400 hover:bg-red-900/30 rounded">
-                    <Trash2 size={16} />
-                  </button>
-                </div>
               </div>
               
-              <p className="text-sm text-slate-400 mb-3 line-clamp-2 flex-1">{device.description || dict.noDescription}</p>
+              <p className={`text-sm ${textSecondary} mb-3 line-clamp-2 flex-1`}>{device.description || dict.noDescription}</p>
               
-              <div className="text-xs text-slate-500 bg-slate-900/50 p-2 rounded space-y-2">
-                <div className="flex justify-between items-center border-b border-white/5 pb-1">
+              <div className={`text-xs ${textMuted} ${isDark ? 'bg-slate-900/50' : 'bg-slate-50'} p-2 rounded space-y-2`}>
+                <div className={`flex justify-between items-center border-b ${isDark ? 'border-white/5' : 'border-slate-200'} pb-1`}>
                    <span>{dict.samplingRate}:</span>
-                   <span className="text-slate-300 font-mono">{device.sampling_rate}ms</span>
+                   <span className={`${isDark ? 'text-slate-300' : 'text-slate-700'} font-mono`}>{device.sampling_rate}ms</span>
                 </div>
                 <div className="flex justify-between items-center">
                    <span>{dict.parameters}:</span>
-                   <span className="text-slate-300">{device.parameters.length}</span>
+                   <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>{device.parameters.length}</span>
                 </div>
                 
                 {/* Real-time Data Preview */}
                 {device.status === 'running' && deviceData[device.id] && (
-                    <div className="mt-2 pt-2 border-t border-white/5 animate-in fade-in duration-300">
+                    <div className={`mt-2 pt-2 border-t ${isDark ? 'border-white/5' : 'border-slate-200'} animate-in fade-in duration-300`}>
                         <div className="flex justify-between items-center mb-1">
-                             <span className="text-[10px] uppercase text-slate-500 font-bold">Live Preview</span>
-                             <span className="text-[10px] font-mono text-slate-600">
+                             <span className={`text-[10px] uppercase ${textMuted} font-bold`}>Live Preview</span>
+                             <span className={`text-[10px] font-mono ${textSecondary}`}>
                                  {new Date(deviceData[device.id].timestamp).toLocaleTimeString()}
                              </span>
                         </div>
                         <div className="grid grid-cols-2 gap-x-4 gap-y-1">
                              {Object.entries(deviceData[device.id].metrics).slice(0, 4).map(([key, val]) => (
                                  <div key={key} className="flex justify-between items-center text-[10px]">
-                                     <span className="text-slate-400 truncate max-w-[60px]" title={key}>{key}</span>
+                                     <span className={`${textSecondary} truncate max-w-[60px]`} title={key}>{key}</span>
                                      <span className="font-mono text-emerald-400">{typeof val === 'number' ? val.toFixed(2) : val}</span>
                                  </div>
                              ))}
@@ -501,10 +570,55 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({ onClose, dict }) =
                     </div>
                 )}
                 {device.status === 'running' && !deviceData[device.id] && (
-                    <div className="mt-2 pt-2 border-t border-white/5 text-[10px] text-slate-600 italic text-center">
+                    <div className={`mt-2 pt-2 border-t ${isDark ? 'border-white/5' : 'border-slate-200'} text-[10px] ${textSecondary} italic text-center`}>
                         Waiting for data...
                     </div>
                 )}
+              </div>
+              
+              <div className={`mt-auto pt-3 border-t ${isDark ? 'border-slate-700' : 'border-slate-200'} flex justify-end gap-2`}>
+                  <button 
+                      onClick={(e) => { e.stopPropagation(); handleToggleStatus(device); }} 
+                      className={`p-1.5 rounded transition-colors ${device.status === 'running' ? 'text-emerald-400 hover:bg-emerald-900/30' : `${textSecondary} hover:${textPrimary} ${hoverClass}`}`}
+                      title={device.status === 'running' ? dict.stop || 'Stop' : dict.start || 'Start'}
+                  >
+                    {device.status === 'running' ? <Square size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
+                  </button>
+                  
+                  {/* Preview Button */}
+                  {onPreview && (
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); onPreview(device.id); }} 
+                        className={`p-1.5 text-sky-400 hover:bg-sky-900/30 rounded ${hoverClass}`}
+                        title={dict.preview || "Preview"}
+                    >
+                        <Eye size={16} />
+                    </button>
+                  )}
+
+                  {/* Monitor Button */}
+                  {onNavigateToMonitor && (
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); onNavigateToMonitor(device.id); }} 
+                        className={`p-1.5 text-purple-400 hover:bg-purple-900/30 rounded ${hoverClass}`}
+                        title={dict.monitorTitle || "Real-time Monitor"}
+                    >
+                        <Activity size={16} />
+                    </button>
+                  )}
+
+                  <button onClick={(e) => { e.stopPropagation(); openEdit(device); }} className={`p-1.5 text-blue-400 hover:bg-blue-900/30 rounded ${hoverClass}`}>
+                    <Edit size={16} />
+                  </button>
+                  <button onClick={(e) => { e.stopPropagation(); setGeneratingDevice(device); }} className={`p-1.5 text-purple-400 hover:bg-purple-900/30 rounded ${hoverClass}`} title={dict.generateData || 'Generate History'}>
+                    <Database size={16} />
+                  </button>
+                  <button onClick={(e) => { e.stopPropagation(); setCleaningDevice(device); }} className={`p-1.5 text-amber-400 hover:bg-amber-900/30 rounded ${hoverClass}`} title={dict.cleanData || 'Clean Data'}>
+                    <Eraser size={16} />
+                  </button>
+                  <button onClick={(e) => { e.stopPropagation(); handleDelete(device.id); }} className={`p-1.5 text-red-400 hover:bg-red-900/30 rounded ${hoverClass}`}>
+                    <Trash2 size={16} />
+                  </button>
               </div>
             </div>
           ))}
@@ -519,6 +633,7 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({ onClose, dict }) =
           onSave={handleSave} 
           onCancel={() => setIsFormOpen(false)} 
           dict={dict}
+          theme={theme}
         />
       )}
 
@@ -529,6 +644,7 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({ onClose, dict }) =
             onConfirm={handleCleanData}
             onCancel={() => setCleaningDevice(null)}
             dict={dict}
+            theme={theme}
         />
       )}
 
@@ -539,6 +655,20 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({ onClose, dict }) =
             onConfirm={handleGenerateData}
             onCancel={() => setGeneratingDevice(null)}
             dict={dict}
+            theme={theme}
+        />
+      )}
+
+      {/* AI Batch Modal */}
+      {isAiBatchOpen && (
+        <AiBatchModal 
+            onConfirm={handleAiBatchGenerate}
+            onCancel={() => setIsAiBatchOpen(false)}
+            description={aiDescription}
+            setDescription={setAiDescription}
+            isGenerating={isGeneratingBatch}
+            dict={dict}
+            theme={theme}
         />
       )}
     </div>
@@ -552,14 +682,26 @@ interface CleanupModalProps {
     onConfirm: (deviceId: string, startTime?: string, endTime?: string) => void;
     onCancel: () => void;
     dict: any;
+    theme?: 'dark' | 'light';
 }
 
-const CleanupModal: React.FC<CleanupModalProps> = ({ device, onConfirm, onCancel, dict }) => {
+const CleanupModal: React.FC<CleanupModalProps> = ({ device, onConfirm, onCancel, dict, theme = 'dark' }) => {
     const [mode, setMode] = useState<'all' | 'range'>('all');
     const [startTime, setStartTime] = useState('');
     const [endTime, setEndTime] = useState('');
     const [isCleaning, setIsCleaning] = useState(false);
     const [dataRange, setDataRange] = useState<{start_time: string, end_time: string} | null>(null);
+
+    const isDark = theme === 'dark';
+    const bgModal = isDark ? 'bg-slate-900' : 'bg-white';
+    const borderMain = isDark ? 'border-slate-700' : 'border-gray-200';
+    const borderSub = isDark ? 'border-slate-800' : 'border-gray-100';
+    const textMain = isDark ? 'text-white' : 'text-gray-900';
+    const textSub = isDark ? 'text-slate-400' : 'text-gray-500';
+    const inputBg = isDark ? 'bg-slate-800' : 'bg-gray-50';
+    const inputBorder = isDark ? 'border-slate-700' : 'border-gray-300';
+    const cardBg = isDark ? 'bg-slate-800/50' : 'bg-gray-50';
+    const itemBorder = isDark ? 'border-slate-700' : 'border-gray-200';
 
     useEffect(() => {
         const fetchRange = async () => {
@@ -589,20 +731,20 @@ const CleanupModal: React.FC<CleanupModalProps> = ({ device, onConfirm, onCancel
 
     return (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-            <div className="bg-slate-900 border border-slate-700 rounded-lg w-full max-w-md shadow-2xl">
-                <div className="p-4 border-b border-slate-800 flex justify-between items-center">
-                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
+            <div className={`${bgModal} border ${borderMain} rounded-lg w-full max-w-md shadow-2xl`}>
+                <div className={`p-4 border-b ${borderSub} flex justify-between items-center`}>
+                    <h3 className={`text-lg font-bold ${textMain} flex items-center gap-2`}>
                         <Eraser className="text-amber-500" size={20} />
                         {dict.cleanDataTitle || 'Clean Device Data'}
                     </h3>
-                    <button onClick={onCancel} className="text-slate-500 hover:text-white"><X size={20}/></button>
+                    <button onClick={onCancel} className={`${textSub} hover:${textMain}`}><X size={20}/></button>
                 </div>
                 
                 <div className="p-6 space-y-4">
-                    <div className="text-sm text-slate-400 mb-4">
-                        Cleaning data for device: <span className="text-white font-bold">{device.name}</span>
+                    <div className={`text-sm ${textSub} mb-4`}>
+                        Cleaning data for device: <span className={`${textMain} font-bold`}>{device.name}</span>
                         {dataRange && (
-                            <div className="mt-2 text-xs bg-blue-900/30 border border-blue-900/50 p-2 rounded text-blue-200">
+                            <div className={`mt-2 text-xs ${isDark ? 'bg-blue-900/30 border-blue-900/50 text-blue-200' : 'bg-blue-50 border-blue-200 text-blue-800'} border p-2 rounded`}>
                                 <div className="font-bold opacity-70 mb-1">Available Data Range (Server Time):</div>
                                 <div className="font-mono">
                                     {new Date(dataRange.start_time).toLocaleString()} <br/>
@@ -614,68 +756,68 @@ const CleanupModal: React.FC<CleanupModalProps> = ({ device, onConfirm, onCancel
                     </div>
 
                     <div className="space-y-2">
-                        <label className="flex items-center gap-3 p-3 rounded border border-slate-700 bg-slate-800/50 cursor-pointer hover:border-slate-600 transition-colors">
+                        <label className={`flex items-center gap-3 p-3 rounded border ${itemBorder} ${cardBg} cursor-pointer hover:border-blue-500 transition-colors`}>
                             <input 
                                 type="radio" 
                                 name="cleanupMode" 
                                 value="all" 
                                 checked={mode === 'all'} 
                                 onChange={() => setMode('all')}
-                                className="w-4 h-4 text-blue-500 focus:ring-blue-500 bg-slate-700 border-slate-600"
+                                className={`w-4 h-4 text-blue-500 focus:ring-blue-500 ${isDark ? 'bg-slate-700 border-slate-600' : 'bg-white border-gray-300'}`}
                             />
-                            <span className="text-white font-medium">{dict.cleanAll || 'Clean All History'}</span>
+                            <span className={`${textMain} font-medium`}>{dict.cleanAll || 'Clean All History'}</span>
                         </label>
 
-                        <label className="flex items-center gap-3 p-3 rounded border border-slate-700 bg-slate-800/50 cursor-pointer hover:border-slate-600 transition-colors">
+                        <label className={`flex items-center gap-3 p-3 rounded border ${itemBorder} ${cardBg} cursor-pointer hover:border-blue-500 transition-colors`}>
                             <input 
                                 type="radio" 
                                 name="cleanupMode" 
                                 value="range" 
                                 checked={mode === 'range'} 
                                 onChange={() => setMode('range')}
-                                className="w-4 h-4 text-blue-500 focus:ring-blue-500 bg-slate-700 border-slate-600"
+                                className={`w-4 h-4 text-blue-500 focus:ring-blue-500 ${isDark ? 'bg-slate-700 border-slate-600' : 'bg-white border-gray-300'}`}
                             />
-                            <span className="text-white font-medium">{dict.cleanRange || 'Clean Time Range'}</span>
+                            <span className={`${textMain} font-medium`}>{dict.cleanRange || 'Clean Time Range'}</span>
                         </label>
                     </div>
 
                     {mode === 'range' && (
                         <div className="space-y-3 pl-7 animate-in slide-in-from-top-2 fade-in duration-200">
                             <div>
-                                <label className="block text-xs uppercase text-slate-500 font-bold mb-1">{dict.startTime || 'Start Time'}</label>
+                                <label className={`block text-xs uppercase ${textSub} font-bold mb-1`}>{dict.startTime || 'Start Time'}</label>
                                 <input 
                                     type="datetime-local" 
                                     value={startTime}
                                     onChange={e => setStartTime(e.target.value)}
-                                    className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white focus:border-blue-500 outline-none text-sm"
+                                    className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-blue-500 outline-none text-sm`}
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs uppercase text-slate-500 font-bold mb-1">{dict.endTime || 'End Time'}</label>
+                                <label className={`block text-xs uppercase ${textSub} font-bold mb-1`}>{dict.endTime || 'End Time'}</label>
                                 <input 
                                     type="datetime-local" 
                                     value={endTime}
                                     onChange={e => setEndTime(e.target.value)}
-                                    className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white focus:border-blue-500 outline-none text-sm"
+                                    className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-blue-500 outline-none text-sm`}
                                 />
                             </div>
                         </div>
                     )}
 
-                    <div className="bg-amber-900/20 border border-amber-900/50 p-3 rounded text-amber-200 text-xs flex items-start gap-2">
+                    <div className={`border p-3 rounded text-xs flex items-start gap-2 ${isDark ? 'bg-amber-900/20 border-amber-900/50 text-amber-200' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
                         <Trash2 size={14} className="mt-0.5 shrink-0" />
                         This action cannot be undone. Data will be permanently removed from TDengine.
                     </div>
                 </div>
 
-                <div className="p-4 border-t border-slate-800 flex justify-end gap-3 bg-slate-900/50">
-                    <button onClick={onCancel} className="px-4 py-2 text-slate-400 hover:text-white font-semibold text-sm">
+                <div className={`p-4 border-t ${borderSub} flex justify-end gap-3 ${isDark ? 'bg-slate-900/50' : 'bg-gray-50'}`}>
+                    <button onClick={onCancel} className={`px-4 py-2 ${textSub} hover:${textMain} font-semibold text-sm`}>
                         {dict.cancel}
                     </button>
                     <button 
                         onClick={handleConfirm}
-                        disabled={isCleaning || (mode === 'range' && (!startTime && !endTime))}
-                        className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-500 disabled:bg-red-900/50 disabled:text-red-200/50 text-white rounded font-bold transition-colors text-sm"
+                        disabled={isCleaning || (mode === 'range' && (!startTime || !endTime))}
+                        className={`flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded font-bold transition-colors text-sm`}
                     >
                         {isCleaning ? (
                             <RefreshCw size={14} className="animate-spin" />
@@ -697,14 +839,24 @@ interface GenerateModalProps {
     onConfirm: (deviceId: string, startTime: string, endTime: string, intervalMs?: number, cleanExisting?: boolean) => void;
     onCancel: () => void;
     dict: any;
+    theme?: 'dark' | 'light';
 }
 
-const GenerateModal: React.FC<GenerateModalProps> = ({ device, onConfirm, onCancel, dict }) => {
+const GenerateModal: React.FC<GenerateModalProps> = ({ device, onConfirm, onCancel, dict, theme = 'dark' }) => {
     const [startTime, setStartTime] = useState('');
     const [endTime, setEndTime] = useState('');
     const [interval, setInterval] = useState<number | ''>('');
     const [cleanExisting, setCleanExisting] = useState(true);
     const [isGenerating, setIsGenerating] = useState(false);
+
+    const isDark = theme === 'dark';
+    const bgModal = isDark ? 'bg-slate-900' : 'bg-white';
+    const borderMain = isDark ? 'border-slate-700' : 'border-gray-200';
+    const borderSub = isDark ? 'border-slate-800' : 'border-gray-100';
+    const textMain = isDark ? 'text-white' : 'text-gray-900';
+    const textSub = isDark ? 'text-slate-400' : 'text-gray-500';
+    const inputBg = isDark ? 'bg-slate-800' : 'bg-gray-50';
+    const inputBorder = isDark ? 'border-slate-700' : 'border-gray-300';
 
     const handleConfirm = async () => {
         if (!startTime || !endTime) return;
@@ -720,49 +872,49 @@ const GenerateModal: React.FC<GenerateModalProps> = ({ device, onConfirm, onCanc
 
     return (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-            <div className="bg-slate-900 border border-slate-700 rounded-lg w-full max-w-md shadow-2xl">
-                <div className="p-4 border-b border-slate-800 flex justify-between items-center">
-                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
+            <div className={`${bgModal} border ${borderMain} rounded-lg w-full max-w-md shadow-2xl`}>
+                <div className={`p-4 border-b ${borderSub} flex justify-between items-center`}>
+                    <h3 className={`text-lg font-bold ${textMain} flex items-center gap-2`}>
                         <Database className="text-purple-500" size={20} />
                         {dict.generateDataTitle || 'Generate Historical Data'}
                     </h3>
-                    <button onClick={onCancel} className="text-slate-500 hover:text-white"><X size={20}/></button>
+                    <button onClick={onCancel} className={`${textSub} hover:${textMain}`}><X size={20}/></button>
                 </div>
                 
                 <div className="p-6 space-y-4">
-                    <div className="text-sm text-slate-400 mb-4">
-                        Generating data for device: <span className="text-white font-bold">{device.name}</span>
+                    <div className={`text-sm ${textSub} mb-4`}>
+                        Generating data for device: <span className={`${textMain} font-bold`}>{device.name}</span>
                     </div>
 
                     <div className="space-y-3">
                         <div>
-                            <label className="block text-xs uppercase text-slate-500 font-bold mb-1">{dict.startTime || 'Start Time'}</label>
+                            <label className={`block text-xs uppercase ${textSub} font-bold mb-1`}>{dict.startTime || 'Start Time'}</label>
                             <input 
                                 type="datetime-local" 
                                 value={startTime}
                                 onChange={e => setStartTime(e.target.value)}
-                                className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white focus:border-blue-500 outline-none text-sm"
+                                className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-blue-500 outline-none text-sm`}
                             />
                         </div>
                         <div>
-                            <label className="block text-xs uppercase text-slate-500 font-bold mb-1">{dict.endTime || 'End Time'}</label>
+                            <label className={`block text-xs uppercase ${textSub} font-bold mb-1`}>{dict.endTime || 'End Time'}</label>
                             <input 
                                 type="datetime-local" 
                                 value={endTime}
                                 onChange={e => setEndTime(e.target.value)}
-                                className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white focus:border-blue-500 outline-none text-sm"
+                                className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-blue-500 outline-none text-sm`}
                             />
                         </div>
                         <div>
-                            <label className="block text-xs uppercase text-slate-500 font-bold mb-1">{dict.intervalMs || 'Interval (ms)'}</label>
+                            <label className={`block text-xs uppercase ${textSub} font-bold mb-1`}>{dict.intervalMs || 'Interval (ms)'}</label>
                             <input 
                                 type="number" 
                                 value={interval}
                                 onChange={e => setInterval(e.target.value === '' ? '' : parseInt(e.target.value))}
                                 placeholder={device.sampling_rate.toString()}
-                                className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white focus:border-blue-500 outline-none text-sm"
+                                className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-blue-500 outline-none text-sm`}
                             />
-                            <p className="text-[10px] text-slate-500 mt-1">Leave empty to use device default ({device.sampling_rate}ms)</p>
+                            <p className={`text-[10px] ${textSub} mt-1`}>Leave empty to use device default ({device.sampling_rate}ms)</p>
                         </div>
                         <div className="flex items-center gap-3 pt-2">
                             <input 
@@ -770,28 +922,28 @@ const GenerateModal: React.FC<GenerateModalProps> = ({ device, onConfirm, onCanc
                                 id="cleanExisting"
                                 checked={cleanExisting}
                                 onChange={e => setCleanExisting(e.target.checked)}
-                                className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-purple-600 focus:ring-purple-500"
+                                className={`w-4 h-4 rounded ${isDark ? 'border-slate-700 bg-slate-900' : 'border-gray-300 bg-white'} text-purple-600 focus:ring-purple-500`}
                             />
-                            <label htmlFor="cleanExisting" className="text-sm text-white font-medium cursor-pointer">
+                            <label htmlFor="cleanExisting" className={`text-sm ${textMain} font-medium cursor-pointer`}>
                                 Clean existing data in range
                             </label>
                         </div>
                     </div>
 
-                    <div className="bg-purple-900/20 border border-purple-900/50 p-3 rounded text-purple-200 text-xs flex items-start gap-2">
+                    <div className={`border p-3 rounded text-xs flex items-start gap-2 ${isDark ? 'bg-purple-900/20 border-purple-900/50 text-purple-200' : 'bg-purple-50 border-purple-200 text-purple-800'}`}>
                         <Clock size={14} className="mt-0.5 shrink-0" />
                         Data will be generated using current device logic and inserted into TDengine.
                     </div>
                 </div>
 
-                <div className="p-4 border-t border-slate-800 flex justify-end gap-3 bg-slate-900/50">
-                    <button onClick={onCancel} className="px-4 py-2 text-slate-400 hover:text-white font-semibold text-sm">
+                <div className={`p-4 border-t ${borderSub} flex justify-end gap-3 ${isDark ? 'bg-slate-900/50' : 'bg-gray-50'}`}>
+                    <button onClick={onCancel} className={`px-4 py-2 ${textSub} hover:${textMain} font-semibold text-sm`}>
                         {dict.cancel}
                     </button>
                     <button 
                         onClick={handleConfirm}
                         disabled={isGenerating || !startTime || !endTime}
-                        className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 disabled:bg-purple-900/50 disabled:text-purple-200/50 text-white rounded font-bold transition-colors text-sm"
+                        className={`flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded font-bold transition-colors text-sm`}
                     >
                         {isGenerating ? (
                             <RefreshCw size={14} className="animate-spin" />
@@ -799,6 +951,73 @@ const GenerateModal: React.FC<GenerateModalProps> = ({ device, onConfirm, onCanc
                             <Database size={14} />
                         )}
                         {isGenerating ? (dict.generating || 'Generating...') : (dict.generateData || 'Generate Data')}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// --- AI Batch Modal Component ---
+
+interface AiBatchModalProps {
+    onConfirm: () => void;
+    onCancel: () => void;
+    description: string;
+    setDescription: (desc: string) => void;
+    isGenerating: boolean;
+    dict: any;
+    theme?: 'dark' | 'light';
+}
+
+const AiBatchModal: React.FC<AiBatchModalProps> = ({ onConfirm, onCancel, description, setDescription, isGenerating, dict, theme = 'dark' }) => {
+    const isDark = theme === 'dark';
+    const bgModal = isDark ? 'bg-slate-900' : 'bg-white';
+    const borderMain = isDark ? 'border-slate-700' : 'border-gray-200';
+    const borderSub = isDark ? 'border-slate-800' : 'border-gray-100';
+    const textMain = isDark ? 'text-white' : 'text-gray-900';
+    const textSub = isDark ? 'text-slate-400' : 'text-gray-500';
+    const inputBg = isDark ? 'bg-slate-800' : 'bg-gray-50';
+    const inputBorder = isDark ? 'border-slate-700' : 'border-gray-300';
+
+    return (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+            <div className={`${bgModal} border ${borderMain} rounded-lg w-full max-w-lg shadow-2xl`}>
+                <div className={`p-4 border-b ${borderSub} flex justify-between items-center`}>
+                    <h3 className={`text-lg font-bold ${textMain} flex items-center gap-2`}>
+                        <Sparkles className="text-purple-500" size={20} />
+                        {dict.aiBatchGeneration || 'AI Batch Generation'}
+                    </h3>
+                    <button onClick={onCancel} className={`${textSub} hover:${textMain}`}><X size={20}/></button>
+                </div>
+                
+                <div className="p-6 space-y-4">
+                    <div className={`text-sm ${textSub} mb-2`}>
+                        {dict.aiBatchDesc || 'Describe the devices you want to generate. Be specific about quantity, type, and naming.'}
+                    </div>
+                    <textarea 
+                        value={description}
+                        onChange={e => setDescription(e.target.value)}
+                        className={`w-full ${inputBg} border ${inputBorder} rounded p-3 ${textMain} focus:border-purple-500 outline-none h-32 resize-none`}
+                        placeholder={dict.aiBatchPlaceholder || "e.g., Create 10 Temperature Sensors for Warehouse A, numbered sequentially."}
+                    />
+                    <div className={`text-xs ${textSub} flex items-center gap-2`}>
+                        <Sparkles size={12} />
+                        {dict.aiBatchPoweredBy || 'Powered by active LLM provider (Gemini/DeepSeek)'}
+                    </div>
+                </div>
+
+                <div className={`p-4 border-t ${borderSub} flex justify-end gap-3 ${isDark ? 'bg-slate-900/50' : 'bg-gray-50'}`}>
+                    <button onClick={onCancel} className={`px-4 py-2 ${textSub} hover:${textMain} font-semibold text-sm`}>
+                        {dict.cancel}
+                    </button>
+                    <button 
+                        onClick={onConfirm}
+                        disabled={isGenerating || !description.trim()}
+                        className={`flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded font-bold transition-colors text-sm`}
+                    >
+                        {isGenerating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                        {isGenerating ? 'Generating...' : 'Generate Batch'}
                     </button>
                 </div>
             </div>
@@ -814,9 +1033,22 @@ interface DeviceFormProps {
   onSave: (device: Partial<BackendDevice>) => void;
   onCancel: () => void;
   dict: any;
+  theme?: 'dark' | 'light';
 }
 
-const DeviceForm: React.FC<DeviceFormProps> = ({ device: initialDevice, categories, onSave, onCancel, dict }) => {
+const DeviceForm: React.FC<DeviceFormProps> = ({ device: initialDevice, categories, onSave, onCancel, dict, theme = 'dark' }) => {
+  const isDark = theme === 'dark';
+  const bgModal = isDark ? 'bg-slate-900' : 'bg-white';
+  const borderMain = isDark ? 'border-slate-700' : 'border-gray-200';
+  const borderHeader = isDark ? 'border-slate-800' : 'border-gray-200';
+  const textMain = isDark ? 'text-white' : 'text-gray-900';
+  const textSub = isDark ? 'text-slate-400' : 'text-gray-500';
+  const textSubDarker = isDark ? 'text-slate-500' : 'text-gray-400';
+  const inputBg = isDark ? 'bg-slate-800' : 'bg-gray-50';
+  const inputBorder = isDark ? 'border-slate-700' : 'border-gray-300';
+  const tabActive = isDark ? 'text-blue-400 border-b-2 border-blue-400 bg-slate-800/50' : 'text-blue-600 border-b-2 border-blue-600 bg-blue-50';
+  const tabInactive = isDark ? 'text-slate-400 hover:text-white' : 'text-gray-500 hover:text-gray-900';
+
   const [device, setDevice] = useState(initialDevice);
   const [activeTab, setActiveTab] = useState<'basic' | 'params' | 'advanced'>('basic');
 
@@ -918,31 +1150,31 @@ const DeviceForm: React.FC<DeviceFormProps> = ({ device: initialDevice, categori
 
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-      <div className="bg-slate-900 border border-slate-700 rounded-lg w-full max-w-6xl max-h-[90vh] flex flex-col shadow-2xl">
+      <div className={`${bgModal} border ${borderMain} rounded-lg w-full max-w-6xl max-h-[90vh] flex flex-col shadow-2xl`}>
         {/* Modal Header */}
-        <div className="p-4 border-b border-slate-800 flex justify-between items-center">
-          <h3 className="text-lg font-bold text-white">
+        <div className={`p-4 border-b ${borderHeader} flex justify-between items-center`}>
+          <h3 className={`text-lg font-bold ${textMain}`}>
             {device.id ? dict.editDevice : dict.createDevice}
           </h3>
-          <button onClick={onCancel} className="text-slate-500 hover:text-white"><X size={20}/></button>
+          <button onClick={onCancel} className={`${textSub} ${isDark ? 'hover:text-white' : 'hover:text-gray-900'}`}><X size={20}/></button>
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-slate-800">
+        <div className={`flex border-b ${borderHeader}`}>
             <button 
-                className={`px-6 py-3 text-sm font-bold transition-colors ${activeTab === 'basic' ? 'text-blue-400 border-b-2 border-blue-400 bg-slate-800/50' : 'text-slate-400 hover:text-white'}`}
+                className={`px-6 py-3 text-sm font-bold transition-colors ${activeTab === 'basic' ? tabActive : tabInactive}`}
                 onClick={() => setActiveTab('basic')}
             >
                 {dict.basicInfo}
             </button>
             <button 
-                className={`px-6 py-3 text-sm font-bold transition-colors ${activeTab === 'params' ? 'text-blue-400 border-b-2 border-blue-400 bg-slate-800/50' : 'text-slate-400 hover:text-white'}`}
+                className={`px-6 py-3 text-sm font-bold transition-colors ${activeTab === 'params' ? tabActive : tabInactive}`}
                 onClick={() => setActiveTab('params')}
             >
                 {dict.parameters} ({device.parameters?.length || 0})
             </button>
             <button 
-                className={`px-6 py-3 text-sm font-bold transition-colors ${activeTab === 'advanced' ? 'text-blue-400 border-b-2 border-blue-400 bg-slate-800/50' : 'text-slate-400 hover:text-white'}`}
+                className={`px-6 py-3 text-sm font-bold transition-colors ${activeTab === 'advanced' ? tabActive : tabInactive}`}
                 onClick={() => setActiveTab('advanced')}
             >
                 {dict.advancedAndErrors}
@@ -954,20 +1186,20 @@ const DeviceForm: React.FC<DeviceFormProps> = ({ device: initialDevice, categori
           {activeTab === 'basic' && (
             <div className="space-y-4 max-w-lg mx-auto">
                <div>
-                 <label className="block text-xs uppercase text-slate-500 font-bold mb-1">{dict.deviceName}</label>
+                 <label className={`block text-xs uppercase ${textSubDarker} font-bold mb-1`}>{dict.deviceName}</label>
                  <input 
                     type="text" 
                     value={device.name}
                     onChange={e => setDevice({...device, name: e.target.value})}
-                    className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white focus:border-blue-500 outline-none"
+                    className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-blue-500 outline-none`}
                  />
                </div>
                <div>
-                 <label className="block text-xs uppercase text-slate-500 font-bold mb-1">{dict.type}</label>
+                 <label className={`block text-xs uppercase ${textSubDarker} font-bold mb-1`}>{dict.type}</label>
                  <select 
                     value={device.type}
                     onChange={e => handleTypeChange(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white focus:border-blue-500 outline-none"
+                    className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-blue-500 outline-none`}
                  >
                     {categories.length > 0 ? (
                       categories.map(c => <option key={c.id} value={c.code}>{c.name} ({c.code})</option>)
@@ -983,81 +1215,81 @@ const DeviceForm: React.FC<DeviceFormProps> = ({ device: initialDevice, categori
                  </select>
                </div>
                <div>
-                 <label className="block text-xs uppercase text-slate-500 font-bold mb-1">{dict.description}</label>
+                 <label className={`block text-xs uppercase ${textSubDarker} font-bold mb-1`}>{dict.description}</label>
                  <textarea 
                     value={device.description}
                     onChange={e => setDevice({...device, description: e.target.value})}
-                    className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white focus:border-blue-500 outline-none h-24"
+                    className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-blue-500 outline-none h-24`}
                  />
                </div>
                <div>
-                 <label className="block text-xs uppercase text-slate-500 font-bold mb-1">{dict.samplingRate}</label>
+                 <label className={`block text-xs uppercase ${textSubDarker} font-bold mb-1`}>{dict.samplingRate} (ms)</label>
                  <input 
                     type="number" 
                     value={device.sampling_rate}
                     onChange={e => setDevice({...device, sampling_rate: parseInt(e.target.value)})}
-                    className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white focus:border-blue-500 outline-none"
+                    className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textMain} focus:border-blue-500 outline-none`}
                  />
                </div>
                
                <div>
-                 <label className="block text-xs uppercase text-slate-500 font-bold mb-1">{dict.subTableName || 'TDengine Subtable'}</label>
+                 <label className={`block text-xs uppercase ${textSubDarker} font-bold mb-1`}>{dict.subTableName || 'TDengine Subtable'}</label>
                  <div className="relative">
                     <input 
                         type="text" 
                         value={device.id ? `device_${device.id}` : `device_<${dict.autoGenerated || 'auto-generated'}>`}
                         readOnly
-                        className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-slate-400 font-mono text-sm"
+                        className={`w-full ${inputBg} border ${inputBorder} rounded p-2 ${textSub} font-mono text-sm`}
                     />
                     {device.id && (
                         <button 
                             onClick={() => navigator.clipboard.writeText(`device_${device.id}`)}
-                            className="absolute right-2 top-2 text-slate-500 hover:text-blue-400"
+                            className={`absolute right-2 top-2 ${textSub} hover:text-blue-400`}
                             title="Copy to clipboard"
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
                         </button>
                     )}
                  </div>
-                 <p className="text-[10px] text-slate-500 mt-1">{dict.subTableHint || 'This is the actual table name in TDengine used for data storage.'}</p>
+                 <p className={`text-[10px] ${textSubDarker} mt-1`}>{dict.subTableHint || 'This is the actual table name in TDengine used for data storage.'}</p>
                </div>
             </div>
           )}
-          
+
           {activeTab === 'params' && (
             <div className="space-y-3">
                  <div className="flex justify-between items-center mb-4">
-                     <div className="text-sm text-slate-400">{dict.defineMetrics}</div>
-                     <button onClick={addParam} className="flex items-center gap-1 text-xs bg-slate-800 hover:bg-slate-700 text-blue-400 px-3 py-1.5 rounded border border-slate-700">
+                     <div className={`text-sm ${textSub}`}>{dict.defineMetrics}</div>
+                     <button onClick={addParam} className={`flex items-center gap-1 text-xs ${isDark ? 'bg-slate-800 hover:bg-slate-700' : 'bg-white hover:bg-gray-100'} text-blue-400 px-3 py-1.5 rounded border ${borderMain}`}>
                         <Plus size={14}/> {dict.addParameter}
                      </button>
                  </div>
 
                  {/* System Timestamp Parameter (Read-only) */}
-                 <div className="p-3 rounded border border-slate-700 bg-slate-900/30 flex flex-wrap gap-3 items-end opacity-70">
+                 <div className={`p-3 rounded border ${borderMain} ${isDark ? 'bg-slate-900/30' : 'bg-gray-50'} flex flex-wrap gap-3 items-end opacity-70`}>
                     <div className="w-[90px]">
-                        <label className="block text-[10px] text-slate-500 mb-1">{dict.paramIsTag || 'Field'}</label>
-                        <div className="w-full border border-slate-700 rounded px-2 py-1 text-sm font-bold bg-slate-800 text-slate-400">
+                        <label className={`block text-[10px] ${textSubDarker} mb-1`}>{dict.paramIsTag || 'Field'}</label>
+                        <div className={`w-full border ${inputBorder} rounded px-2 py-1 text-sm font-bold ${isDark ? 'bg-slate-800 text-slate-400' : 'bg-gray-100 text-gray-500'}`}>
                             {dict.tagColumn || 'Column'}
                         </div>
                     </div>
                     <div className="w-[120px]">
-                        <label className="block text-[10px] text-slate-500 mb-1">{dict.paramId || 'ID'}</label>
-                        <input type="text" value="ts" disabled className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-slate-500 font-mono" />
+                        <label className={`block text-[10px] ${textSubDarker} mb-1`}>{dict.paramId || 'ID'}</label>
+                        <input type="text" value="ts" disabled className={`w-full ${inputBg} border ${inputBorder} rounded px-2 py-1 text-sm ${textSubDarker} font-mono`} />
                     </div>
                     <div className="w-[140px]">
-                        <label className="block text-[10px] text-slate-500 mb-1">{dict.paramName}</label>
-                        <input type="text" value={dict.startTime || "Timestamp"} disabled className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-slate-500" />
+                        <label className={`block text-[10px] ${textSubDarker} mb-1`}>{dict.paramName}</label>
+                        <input type="text" value={dict.startTime || "Timestamp"} disabled className={`w-full ${inputBg} border ${inputBorder} rounded px-2 py-1 text-sm ${textSubDarker}`} />
                     </div>
                     <div className="w-[100px]">
-                        <label className="block text-[10px] text-slate-500 mb-1">{dict.paramType}</label>
-                        <div className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-slate-500">
+                        <label className={`block text-[10px] ${textSubDarker} mb-1`}>{dict.paramType}</label>
+                        <div className={`w-full ${inputBg} border ${inputBorder} rounded px-2 py-1 text-sm ${textSubDarker}`}>
                             Timestamp
                         </div>
                     </div>
                     <div className="w-[70px]">
-                        <label className="block text-[10px] text-slate-500 mb-1">{dict.paramUnit}</label>
-                        <input type="text" value="ms" disabled className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-slate-500" />
+                        <label className={`block text-[10px] ${textSubDarker} mb-1`}>{dict.paramUnit}</label>
+                        <input type="text" value="ms" disabled className={`w-full ${inputBg} border ${inputBorder} rounded px-2 py-1 text-sm ${textSubDarker}`} />
                     </div>
                     <div className="flex-1"></div>
                     <div className="w-[30px] flex justify-center pb-2">
@@ -1066,34 +1298,34 @@ const DeviceForm: React.FC<DeviceFormProps> = ({ device: initialDevice, categori
                  </div>
 
                  {/* System Device Code Parameter (Read-only) */}
-                 <div className="p-3 rounded border border-slate-700 bg-slate-900/30 flex flex-wrap gap-3 items-end opacity-70">
+                 <div className={`p-3 rounded border ${borderMain} ${isDark ? 'bg-slate-900/30' : 'bg-gray-50'} flex flex-wrap gap-3 items-end opacity-70`}>
                     <div className="w-[90px]">
-                        <label className="block text-[10px] text-slate-500 mb-1">{dict.paramIsTag || 'Field'}</label>
-                        <div className="w-full border border-slate-700 rounded px-2 py-1 text-sm font-bold bg-slate-800 text-slate-400">
+                        <label className={`block text-[10px] ${textSubDarker} mb-1`}>{dict.paramIsTag || 'Field'}</label>
+                        <div className={`w-full border ${inputBorder} rounded px-2 py-1 text-sm font-bold ${isDark ? 'bg-slate-800 text-slate-400' : 'bg-gray-100 text-gray-500'}`}>
                             {dict.tagTag || 'Tag'}
                         </div>
                     </div>
                     <div className="w-[120px]">
-                        <label className="block text-[10px] text-slate-500 mb-1">{dict.paramId || 'ID'}</label>
-                        <input type="text" value="device_code" disabled className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-slate-500 font-mono" />
+                        <label className={`block text-[10px] ${textSubDarker} mb-1`}>{dict.paramId || 'ID'}</label>
+                        <input type="text" value="device_code" disabled className={`w-full ${inputBg} border ${inputBorder} rounded px-2 py-1 text-sm ${textSubDarker} font-mono`} />
                     </div>
                     <div className="w-[140px]">
-                        <label className="block text-[10px] text-slate-500 mb-1">{dict.paramName || 'Name'}</label>
-                        <input type="text" value="Device Code" disabled className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-slate-500" />
+                        <label className={`block text-[10px] ${textSubDarker} mb-1`}>{dict.paramName || 'Name'}</label>
+                        <input type="text" value="Device Code" disabled className={`w-full ${inputBg} border ${inputBorder} rounded px-2 py-1 text-sm ${textSubDarker}`} />
                     </div>
                     <div className="w-[100px]">
-                        <label className="block text-[10px] text-slate-500 mb-1">{dict.paramType || 'Data Type'}</label>
-                        <div className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-slate-500">
+                        <label className={`block text-[10px] ${textSubDarker} mb-1`}>{dict.paramType || 'Data Type'}</label>
+                        <div className={`w-full ${inputBg} border ${inputBorder} rounded px-2 py-1 text-sm ${textSubDarker}`}>
                             STRING
                         </div>
                     </div>
                      <div className="flex-1 min-w-[150px]">
-                         <label className="block text-[10px] text-slate-500 mb-1">{dict.tagValue || 'Tag Value'}</label>
+                         <label className={`block text-[10px] ${textSubDarker} mb-1`}>{dict.tagValue || 'Tag Value'}</label>
                          <input 
                            type="text" 
                            value={device.parameters?.find(p => p.id === 'device_code')?.default_value || 'Auto-generated'} 
                            disabled
-                           className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-slate-500"
+                           className={`w-full ${inputBg} border ${inputBorder} rounded px-2 py-1 text-sm ${textSubDarker}`}
                          />
                       </div>
                     <div className="w-[30px] flex justify-center pb-2">
@@ -1104,14 +1336,14 @@ const DeviceForm: React.FC<DeviceFormProps> = ({ device: initialDevice, categori
                  {device.parameters?.filter(p => p.id !== 'device_code').map((param, idx) => {
                     const realIdx = device.parameters.findIndex(p => p === param);
                     return (
-                    <div key={realIdx} className={`p-3 rounded border flex flex-wrap gap-3 items-end ${param.is_tag ? 'bg-amber-900/20 border-amber-700/50' : 'bg-slate-800/50 border-slate-700'}`}>
+                    <div key={realIdx} className={`p-3 rounded border flex flex-wrap gap-3 items-end ${param.is_tag ? (isDark ? 'bg-amber-900/20 border-amber-700/50' : 'bg-amber-50 border-amber-200') : (isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-gray-50 border-gray-200')}`}>
                        {/* Field Type Select */}
                        <div className="w-[90px]">
-                          <label className="block text-[10px] text-slate-500 mb-1">{dict.paramIsTag || 'Field'}</label>
+                          <label className={`block text-[10px] ${textSubDarker} mb-1`}>{dict.paramIsTag || 'Field'}</label>
                           <select 
                              value={param.is_tag ? 'tag' : 'column'}
                              onChange={e => handleParamChange(idx, 'is_tag', e.target.value === 'tag')}
-                             className={`w-full border rounded px-2 py-1 text-sm font-bold ${param.is_tag ? 'bg-amber-900/50 border-amber-600 text-amber-300' : 'bg-blue-900/50 border-blue-600 text-blue-300'}`}
+                             className={`w-full border rounded px-2 py-1 text-sm font-bold ${param.is_tag ? (isDark ? 'bg-amber-900/50 border-amber-600 text-amber-300' : 'bg-amber-100 border-amber-300 text-amber-700') : (isDark ? 'bg-blue-900/50 border-blue-600 text-blue-300' : 'bg-blue-100 border-blue-300 text-blue-700')}`}
                           >
                              <option value="column">{dict.tagColumn || 'Column'}</option>
                              <option value="tag">{dict.tagTag || 'Tag'}</option>
@@ -1119,30 +1351,30 @@ const DeviceForm: React.FC<DeviceFormProps> = ({ device: initialDevice, categori
                        </div>
 
                        <div className="w-[120px]">
-                          <label className="block text-[10px] text-slate-500 mb-1">{dict.paramId || 'ID'}</label>
+                          <label className={`block text-[10px] ${textSubDarker} mb-1`}>{dict.paramId || 'ID'}</label>
                           <input 
                             type="text" 
                             value={param.id || ''} 
                             onChange={e => handleParamChange(realIdx, 'id', e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white font-mono"
+                            className={`w-full ${inputBg} border ${inputBorder} rounded px-2 py-1 text-sm ${textMain} font-mono`}
                             placeholder="e.g. voltage"
                           />
                        </div>
                        <div className="w-[140px]">
-                          <label className="block text-[10px] text-slate-500 mb-1">{dict.paramName}</label>
+                          <label className={`block text-[10px] ${textSubDarker} mb-1`}>{dict.paramName}</label>
                           <input 
                             type="text" 
                             value={param.name} 
                             onChange={e => handleParamChange(realIdx, 'name', e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white"
+                            className={`w-full ${inputBg} border ${inputBorder} rounded px-2 py-1 text-sm ${textMain}`}
                           />
                        </div>
                        <div className="w-[100px]">
-                          <label className="block text-[10px] text-slate-500 mb-1">{dict.paramType}</label>
+                          <label className={`block text-[10px] ${textSubDarker} mb-1`}>{dict.paramType}</label>
                           <select 
                              value={param.type}
                              onChange={e => handleParamChange(realIdx, 'type', e.target.value)}
-                             className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white"
+                             className={`w-full ${inputBg} border ${inputBorder} rounded px-2 py-1 text-sm ${textMain}`}
                           >
                              {Object.values(ParameterType).map(t => <option key={t} value={t}>{t}</option>)}
                           </select>
@@ -1156,45 +1388,45 @@ const DeviceForm: React.FC<DeviceFormProps> = ({ device: initialDevice, categori
                                    value={param.default_value || ''} 
                                    onChange={e => handleParamChange(realIdx, 'default_value', e.target.value)}
                                    disabled={param.id === 'device_code'}
-                                   className={`w-full bg-slate-900 border border-amber-500/50 rounded px-2 py-1 text-sm text-white ${param.id === 'device_code' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                   className={`w-full ${inputBg} border ${isDark ? 'border-amber-500/50' : 'border-amber-200'} rounded px-2 py-1 text-sm ${textMain} ${param.id === 'device_code' ? 'opacity-50 cursor-not-allowed' : ''}`}
                                    placeholder={param.id === 'device_code' ? 'Auto-generated' : "Value for this device"}
                                />
                            </div>
                        ) : (
                            <>
                                <div className="w-[70px]">
-                                  <label className="block text-[10px] text-slate-500 mb-1">{dict.paramUnit}</label>
+                                  <label className={`block text-[10px] ${textSubDarker} mb-1`}>{dict.paramUnit}</label>
                                   <input 
                                     type="text" 
                                     value={param.unit || ''} 
                                     onChange={e => handleParamChange(realIdx, 'unit', e.target.value)}
-                                    className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white"
+                                    className={`w-full ${inputBg} border ${inputBorder} rounded px-2 py-1 text-sm ${textMain}`}
                                   />
                                </div>
                                <div className="w-[70px]">
-                                  <label className="block text-[10px] text-slate-500 mb-1">{dict.paramMin}</label>
+                                  <label className={`block text-[10px] ${textSubDarker} mb-1`}>{dict.paramMin}</label>
                                   <input 
                                     type="number" 
                                     value={param.min_value} 
                                     onChange={e => handleParamChange(realIdx, 'min_value', parseFloat(e.target.value))}
-                                    className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white"
+                                    className={`w-full ${inputBg} border ${inputBorder} rounded px-2 py-1 text-sm ${textMain}`}
                                   />
                                </div>
                                <div className="w-[70px]">
-                                  <label className="block text-[10px] text-slate-500 mb-1">{dict.paramMax}</label>
+                                  <label className={`block text-[10px] ${textSubDarker} mb-1`}>{dict.paramMax}</label>
                                   <input 
                                     type="number" 
                                     value={param.max_value} 
                                     onChange={e => handleParamChange(realIdx, 'max_value', parseFloat(e.target.value))}
-                                    className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white"
+                                    className={`w-full ${inputBg} border ${inputBorder} rounded px-2 py-1 text-sm ${textMain}`}
                                   />
                                </div>
                                <div className="w-[110px]">
-                                  <label className="block text-[10px] text-slate-500 mb-1">{dict.paramGenMode}</label>
+                                  <label className={`block text-[10px] ${textSubDarker} mb-1`}>{dict.paramGenMode}</label>
                                   <select 
                                      value={param.generation_mode}
                                      onChange={e => handleParamChange(realIdx, 'generation_mode', e.target.value)}
-                                     className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white"
+                                     className={`w-full ${inputBg} border ${inputBorder} rounded px-2 py-1 text-sm ${textMain}`}
                                   >
                                      {Object.values(GenerationMode).map(m => <option key={m} value={m}>{m}</option>)}
                                   </select>
@@ -1208,122 +1440,89 @@ const DeviceForm: React.FC<DeviceFormProps> = ({ device: initialDevice, categori
                     </div>
                  )})}
                  {device.parameters?.length === 0 && (
-                    <div className="text-center py-8 text-slate-600 italic">{dict.noParams}</div>
+                    <div className={`text-center py-8 ${textSubDarker} italic`}>{dict.noParams}</div>
                  )}
             </div>
           )}
 
           {activeTab === 'advanced' && (
             <div>
-                <div className="mb-4 bg-slate-800/50 p-4 rounded border border-slate-700">
-                    <h4 className="text-white font-bold mb-2">{dict.globalPhysicsConfig}</h4>
-                    <p className="text-xs text-slate-400 mb-4">Configure physical properties for kinematics simulation.</p>
+                {/* Physics Config */}
+                <div className={`mb-4 ${isDark ? 'bg-slate-800/50' : 'bg-gray-50'} p-4 rounded border ${borderMain}`}>
+                    <h4 className={`${textMain} font-bold mb-2`}>{dict.globalPhysicsConfig || 'Physics Config'}</h4>
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-[10px] text-slate-500 mb-1">{dict.massKg}</label>
+                            <label className={`block text-[10px] ${textSubDarker} mb-1`}>{dict.massKg || 'Mass (kg)'}</label>
                             <input 
                                 type="number" 
                                 value={device.physics_config?.mass || ''}
                                 onChange={e => handlePhysicsChange('mass', parseFloat(e.target.value))}
-                                className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white" 
+                                className={`w-full ${inputBg} border ${inputBorder} rounded px-2 py-1 text-sm ${textMain}`} 
                             />
                         </div>
                         <div>
-                             <label className="block text-[10px] text-slate-500 mb-1">{dict.maxVelocity}</label>
+                             <label className={`block text-[10px] ${textSubDarker} mb-1`}>{dict.maxVelocity}</label>
                             <input 
                                 type="number" 
                                 value={device.physics_config?.max_velocity || ''}
                                 onChange={e => handlePhysicsChange('max_velocity', parseFloat(e.target.value))}
-                                className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white" 
+                                className={`w-full ${inputBg} border ${inputBorder} rounded px-2 py-1 text-sm ${textMain}`} 
                             />
                         </div>
                     </div>
                 </div>
-
-                <div className="mb-4 bg-slate-800/50 p-4 rounded border border-slate-700">
-                    <h4 className="text-white font-bold mb-4">{dict.logicRules}</h4>
-                    <div className="space-y-2 mb-4">
-                        {device.logic_rules?.map((rule, idx) => (
-                            <div key={idx} className="flex gap-2 items-center">
-                                <input 
-                                    type="text" 
-                                    value={rule.condition}
-                                    onChange={e => handleRuleChange(idx, 'condition', e.target.value)}
-                                    className="flex-1 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white"
-                                    placeholder={dict.ruleHint}
-                                />
-                                <span className="text-slate-500">→</span>
-                                <input 
-                                    type="text" 
-                                    value={rule.action}
-                                    onChange={e => handleRuleChange(idx, 'action', e.target.value)}
-                                    className="flex-1 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white"
-                                    placeholder={dict.actionHint}
-                                />
-                                <button onClick={() => handleRemoveRule(idx)} className="p-1.5 text-slate-500 hover:text-red-400">
-                                    <Trash2 size={16} />
-                                </button>
-                            </div>
-                        ))}
-                        {(!device.logic_rules || device.logic_rules.length === 0) && (
-                            <div className="text-slate-500 italic text-sm mb-2">No rules defined.</div>
-                        )}
-                        <button onClick={handleAddRule} className="flex items-center gap-1 text-xs bg-slate-800 hover:bg-slate-700 text-blue-400 px-3 py-1.5 rounded border border-slate-700">
-                            <Plus size={14}/> {dict.addRule}
-                        </button>
-                    </div>
-                </div>
-
-                <h4 className="text-white font-bold mb-4">{dict.paramErrorInjection}</h4>
+                
+                {/* Error Injection */}
+                <h4 className={`${textMain} font-bold mb-4`}>{dict.paramErrorInjection || 'Error Injection'}</h4>
                 <div className="space-y-4">
-                    {device.parameters?.filter(p => p.type === ParameterType.NUMBER).map((param, idx) => (
-                        <div key={idx} className="bg-slate-800/30 p-4 rounded border border-slate-700">
+                    {(device.parameters || []).filter(p => p.type === ParameterType.NUMBER).map((param, idx) => (
+                        <div key={idx} className={`${isDark ? 'bg-slate-800/30' : 'bg-gray-50'} p-4 rounded border ${borderMain}`}>
                             <div className="font-bold text-blue-400 mb-2">{param.name}</div>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
-                                    <label className="block text-[10px] text-slate-500 mb-1">{dict.driftRate}</label>
+                                    <label className={`block text-[10px] ${textSubDarker} mb-1`}>{dict.driftRate || 'Drift Rate'}</label>
                                     <input 
                                         type="number" 
                                         step="0.1"
                                         value={param.error_config?.drift_rate || ''}
                                         onChange={e => handleParamConfigChange(idx, 'error_config', 'drift_rate', parseFloat(e.target.value))}
-                                        className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white" 
+                                        className={`w-full ${inputBg} border ${inputBorder} rounded px-2 py-1 text-sm ${textMain}`} 
                                         placeholder="0.0"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] text-slate-500 mb-1">{dict.anomalyProb}</label>
+                                    <label className={`block text-[10px] ${textSubDarker} mb-1`}>{dict.anomalyProb || 'Anomaly Prob'}</label>
                                     <input 
                                         type="number" 
                                         step="0.01"
                                         min="0" max="1"
                                         value={param.error_config?.anomaly_probability || ''}
                                         onChange={e => handleParamConfigChange(idx, 'error_config', 'anomaly_probability', parseFloat(e.target.value))}
-                                        className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white" 
+                                        className={`w-full ${inputBg} border ${inputBorder} rounded px-2 py-1 text-sm ${textMain}`} 
                                         placeholder="0.05"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] text-slate-500 mb-1">{dict.dropProb || 'Drop Prob'}</label>
+                                    <label className={`block text-[10px] ${textSubDarker} mb-1`}>{dict.dropProb || 'Drop Prob'}</label>
                                     <input 
                                         type="number" 
                                         step="0.01"
                                         min="0" max="1"
                                         value={param.error_config?.mcar_probability || ''}
                                         onChange={e => handleParamConfigChange(idx, 'error_config', 'mcar_probability', parseFloat(e.target.value))}
-                                        className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white" 
+                                        className={`w-full ${inputBg} border ${inputBorder} rounded px-2 py-1 text-sm ${textMain}`} 
                                         placeholder="0.01"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] text-slate-500 mb-1">{dict.noiseStdDev || 'Noise (StdDev)'}</label>
+                                    <label className={`block text-[10px] ${textSubDarker} mb-1`}>{dict.noiseStdDev || 'Noise (StdDev)'}</label>
                                     <input 
                                         type="number" 
                                         step="0.1"
                                         min="0"
                                         value={param.error_config?.noise_std_dev || ''}
                                         onChange={e => handleParamConfigChange(idx, 'error_config', 'noise_std_dev', parseFloat(e.target.value))}
-                                        className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white" 
+                                        className={`w-full ${inputBg} border ${inputBorder} rounded px-2 py-1 text-sm ${textMain}`} 
                                         placeholder="0.5"
                                     />
                                 </div>
@@ -1331,7 +1530,7 @@ const DeviceForm: React.FC<DeviceFormProps> = ({ device: initialDevice, categori
                         </div>
                     ))}
                     {device.parameters?.filter(p => p.type === ParameterType.NUMBER).length === 0 && (
-                        <div className="text-slate-500 italic text-sm">{dict.noNumericParams}</div>
+                        <div className={`text-slate-500 italic text-sm`}>{dict.noNumericParams}</div>
                     )}
                 </div>
             </div>
@@ -1339,11 +1538,12 @@ const DeviceForm: React.FC<DeviceFormProps> = ({ device: initialDevice, categori
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-slate-800 flex justify-end gap-3 bg-slate-900/50">
-          <button onClick={onCancel} className="px-4 py-2 text-slate-400 hover:text-white font-semibold">{dict.cancel}</button>
+        <div className={`p-4 border-t ${borderMain} flex justify-end gap-3 ${isDark ? 'bg-slate-900/50' : 'bg-gray-100'}`}>
+          <button onClick={onCancel} className={`px-4 py-2 ${textSub} ${isDark ? 'hover:text-white' : 'hover:text-gray-900'} font-semibold`}>{dict.cancel}</button>
           <button 
             onClick={() => onSave(device)}
-            className="flex items-center gap-2 px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold transition-colors shadow-lg shadow-blue-900/20"
+            disabled={!device.name || !device.type}
+            className="flex items-center gap-2 px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold transition-colors shadow-lg shadow-blue-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Save size={16} /> {dict.saveDevice}
           </button>

@@ -35,6 +35,8 @@ class Parameter(BaseModel):
     generation_params: Dict[str, Any] = Field(default_factory=dict)
     error_config: Dict[str, Any] = Field(default_factory=dict)  # Add error_config
     is_tag: bool = False # TDengine: true for TAG, false for COLUMN
+    is_integer: bool = False # Force integer values for NUMBER type
+
 
     @validator('max_value')
     def validate_max_value(cls, v, values):
@@ -55,6 +57,10 @@ class Device(BaseModel):
     status: DeviceStatus = DeviceStatus.STOPPED  # 使用 Enum
     physics_config: Dict[str, Any] = Field(default_factory=dict) # Add physics_config
     logic_rules: List[Dict[str, Any]] = Field(default_factory=list) # Add logic_rules
+    scenarios: List[str] = Field(default_factory=lambda: ["Normal", "High Load", "Error State"])
+    current_scenario: Optional[str] = None # Add current_scenario
+    scenario_configs: Dict[str, Any] = Field(default_factory=dict)
+
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
 
@@ -76,5 +82,8 @@ class DeviceDB(Base):
     status = Column(String, default="stopped")
     physics_config = Column(JSON, default={}) # Add physics_config
     logic_rules = Column(JSON, default=[]) # Add logic_rules
+    scenarios = Column(JSON, default=["Normal", "High Load", "Error State"])
+    current_scenario = Column(String, nullable=True) # Add current_scenario
+    scenario_configs = Column(JSON, default={})
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)

@@ -16,6 +16,7 @@ class SimulationModelDB(Base):
     description = Column(String, nullable=True)
     parameters = Column(JSON)  # 存储参数定义的列表
     physics_config = Column(JSON, default={}) # 物理仿真配置
+    visual_config = Column(JSON, default={}) # 3D可视化配置
     logic_rules = Column(JSON, default=[]) # 逻辑规则配置
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
@@ -28,6 +29,7 @@ class SimulationModel(BaseModel):
     description: Optional[str] = None
     parameters: List[Parameter] = Field(default_factory=list)
     physics_config: Dict[str, Any] = Field(default_factory=dict)
+    visual_config: Dict[str, Any] = Field(default_factory=dict)
     logic_rules: List[Dict[str, Any]] = Field(default_factory=list)
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None

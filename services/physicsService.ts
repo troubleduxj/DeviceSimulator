@@ -69,7 +69,14 @@ export const generateLocalData = (
     const noise = (Math.random() - 0.5) * (metric.max - metric.min) * noiseFactor;
     
     // Clamp values
-    nextMetrics[metric.id] = Math.max(metric.min, Math.min(metric.max, rawNext + noise));
+    let val = Math.max(metric.min, Math.min(metric.max, rawNext + noise));
+    
+    // Force integer if configured
+    if (metric.is_integer) {
+        val = Math.round(val);
+    }
+    
+    nextMetrics[metric.id] = val;
   });
 
   // Update Cache

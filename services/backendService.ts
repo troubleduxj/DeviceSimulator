@@ -1,6 +1,27 @@
 import { Device, SimulationStep } from '../types';
 
-const API_BASE = '/api';
+let API_BASE = '/api';
+
+// Define global for TS
+declare global {
+  interface Window {
+    electronAPI?: {
+      getServerConfig: () => Promise<{ port: number; baseUrl: string }>;
+    };
+  }
+}
+
+export const initApiBase = async () => {
+  if (window.electronAPI) {
+    try {
+      const config = await window.electronAPI.getServerConfig();
+      API_BASE = `${config.baseUrl}/api`;
+      console.log('Electron environment detected. API Base URL:', API_BASE);
+    } catch (e) {
+      console.error('Failed to get server config from Electron:', e);
+    }
+  }
+};
 
 // Backend Types
 export enum ParameterType {
@@ -29,6 +50,7 @@ export interface BackendParameter {
   generation_params?: Record<string, any>;
   error_config?: Record<string, any>;
   is_tag?: boolean; // TDengine: true for TAG, false for COLUMN
+  is_integer?: boolean;
 }
 
 export interface BackendDevice {
@@ -43,6 +65,8 @@ export interface BackendDevice {
   status: 'running' | 'stopped' | 'error';
   physics_config?: Record<string, any>;
   logic_rules?: Array<{ condition: string; action: string }>;
+  scenarios?: string[];
+  scenario_configs?: Record<string, any>;
   created_at?: string;
   updated_at?: string;
 }
@@ -56,6 +80,8 @@ export interface Category {
   parameters: BackendParameter[];
   physics_config?: Record<string, any>;
   logic_rules?: Array<{ condition: string; action: string }>;
+  scenarios?: string[];
+  scenario_configs?: Record<string, any>;
   created_at?: string;
   updated_at?: string;
 }
@@ -67,6 +93,7 @@ export interface SimulationModel {
   description?: string;
   parameters: BackendParameter[];
   physics_config?: Record<string, any>;
+  visual_config?: Record<string, any>; // Add visual_config
   logic_rules?: Array<{ condition: string; action: string }>;
   created_at?: string;
   updated_at?: string;
@@ -255,23 +282,28 @@ export const backendService = {
       
       return backendDevices.map(bd => {
         const type = mapBackendTypeToFrontend(bd.type);
-        let scenarios = ['Normal Operation'];
+        let scenarios = bd.scenarios || [];
         
-        // Inject scenarios based on type
-        if (type === 'Generator') {
-            scenarios = ['Normal Operation', 'High Load', 'Unstable Output'];
-        } else if (type === 'Cutter') {
-            scenarios = ['Precision Cutting', 'Idle', 'Error State'];
+        // Inject default scenarios if none exist
+        if (scenarios.length === 0) {
+            scenarios = ['Normal Operation'];
+            if (type === 'Generator') {
+                scenarios = ['Normal Operation', 'High Load', 'Unstable Output'];
+            } else if (type === 'Cutter') {
+                scenarios = ['Precision Cutting', 'Idle', 'Error State'];
+            }
         }
 
         return {
             id: bd.id,
             name: bd.name,
             type: type,
+            backendType: bd.type, // Store original type
             description: bd.description || '',
             status: bd.status === 'running' ? 'running' : 'stopped',
-            currentScenario: scenarios[0], 
+            currentScenario: (bd as any).current_scenario || scenarios[0], // Use saved scenario or default
             scenarios: scenarios,
+            scenario_configs: bd.scenario_configs,
             parameters: bd.parameters, // Keep raw parameters for updates
             physics_config: bd.physics_config,
             logic_rules: bd.logic_rules,
@@ -280,8 +312,10 @@ export const backendService = {
             name: p.name,
             unit: p.unit || '',
             min: p.min_value ?? 0,
-            max: p.max_value ?? 100
-            }))
+            max: p.max_value ?? 100,
+            is_tag: p.is_tag,
+            is_integer: p.is_integer
+          }))
         } as any; // Use any to bypass strict type check for extra fields if needed
       });
     } catch (error) {
@@ -419,7 +453,7 @@ export const backendService = {
         return {
           timestamp: new Date(latest.ts).getTime(), // Ensure this timestamp is changing
           metrics,
-          logMessage: '',
+          logMessage: `Telemetry data received from backend. Active parameters: ${Object.keys(metrics).length}`,
           statusSeverity: 'info'
         };
       }

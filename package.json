@@ -3,15 +3,43 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "main": "electron/main.cjs",
+  "build": {
+    "appId": "com.iot.simulator",
+    "productName": "IoT Digital Twin Simulator",
+    "directories": {
+      "output": "dist_electron"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "backend/dist/server",
+        "to": "backend"
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    }
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:backend": "cd backend && pyinstaller --noconfirm --clean backend.spec",
+    "build:frontend": "vite build",
+    "dist": "npm run build:backend && npm run build:frontend && electron-builder",
+    "electron:dev": "concurrently \"cross-env BROWSER=none npm run dev\" \"wait-on http://localhost:3000 && electron .\""
   },
   "dependencies": {
     "@google/genai": "^1.30.0",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.4.2",
+    "electron-log": "^5.4.3",
     "lucide-react": "^0.555.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
@@ -23,9 +51,14 @@
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
     "autoprefixer": "^10.4.22",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "electron": "^39.2.6",
+    "electron-builder": "^26.0.12",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.17",
     "typescript": "~5.8.2",
-    "vite": "^6.2.0"
+    "vite": "^6.2.0",
+    "wait-on": "^9.0.3"
   }
 }

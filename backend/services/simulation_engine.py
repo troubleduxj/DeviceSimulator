@@ -228,6 +228,17 @@ class StrategyFactory:
     def get_strategy(mode: GenerationMode) -> SimulationStrategy:
         return StrategyFactory._strategies.get(mode, RandomStrategy())
 
+    @staticmethod
+    def generate_next_value(parameter: Parameter, params: Dict[str, Any]) -> Any:
+        strategy = StrategyFactory.get_strategy(parameter.generation_mode)
+        value = strategy.generate(parameter, params)
+        
+        # Enforce integer type if configured
+        if parameter.type == ParameterType.NUMBER and getattr(parameter, "is_integer", False) and isinstance(value, (int, float)):
+            value = round(value)
+            
+        return value
+
 # --- 5. State Management ---
 class DeviceState:
     def __init__(self):

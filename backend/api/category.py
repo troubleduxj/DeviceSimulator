@@ -64,6 +64,16 @@ def get_all_categories(db: Session = Depends(get_db)):
         if isinstance(logic_rules, str):
             try: logic_rules = json.loads(logic_rules)
             except: logic_rules = []
+
+        scenarios = cat_db.scenarios or []
+        if isinstance(scenarios, str):
+            try: scenarios = json.loads(scenarios)
+            except: scenarios = []
+
+        scenario_configs = cat_db.scenario_configs or {}
+        if isinstance(scenario_configs, str):
+            try: scenario_configs = json.loads(scenario_configs)
+            except: scenario_configs = {}
         
         categories.append(Category(
             id=cat_db.id,
@@ -74,6 +84,8 @@ def get_all_categories(db: Session = Depends(get_db)):
             parameters=parameters,
             physics_config=physics_config,
             logic_rules=logic_rules,
+            scenarios=scenarios,
+            scenario_configs=scenario_configs,
             created_at=cat_db.created_at,
             updated_at=cat_db.updated_at
         ))
@@ -98,6 +110,8 @@ def create_category(category: Category, db: Session = Depends(get_db)):
         parameters=[p.dict() for p in category.parameters], # SQLAlchemy handles list -> JSON conversion
         physics_config=category.physics_config,
         logic_rules=category.logic_rules,
+        scenarios=category.scenarios,
+        scenario_configs=category.scenario_configs,
         created_at=category.created_at,
         updated_at=category.updated_at
     )
@@ -125,6 +139,8 @@ def create_category(category: Category, db: Session = Depends(get_db)):
         parameters=category.parameters, # Use input parameters which are already Pydantic models
         physics_config=category.physics_config,
         logic_rules=category.logic_rules,
+        scenarios=category.scenarios,
+        scenario_configs=category.scenario_configs,
         created_at=category_db.created_at,
         updated_at=category_db.updated_at
     )
@@ -160,6 +176,8 @@ def update_category(category_id: str, category: Category, db: Session = Depends(
     db_category.parameters = [p.dict() for p in category.parameters]
     db_category.physics_config = category.physics_config
     db_category.logic_rules = category.logic_rules
+    db_category.scenarios = category.scenarios
+    db_category.scenario_configs = category.scenario_configs
     db_category.updated_at = category.updated_at
     
     db.commit()
@@ -180,6 +198,16 @@ def update_category(category_id: str, category: Category, db: Session = Depends(
         try: logic_rules = json.loads(logic_rules)
         except: logic_rules = []
 
+    scenarios = db_category.scenarios or []
+    if isinstance(scenarios, str):
+        try: scenarios = json.loads(scenarios)
+        except: scenarios = []
+
+    scenario_configs = db_category.scenario_configs or {}
+    if isinstance(scenario_configs, str):
+        try: scenario_configs = json.loads(scenario_configs)
+        except: scenario_configs = {}
+
     return Category(
         id=db_category.id,
         name=db_category.name,
@@ -189,6 +217,8 @@ def update_category(category_id: str, category: Category, db: Session = Depends(
         parameters=parameters,
         physics_config=physics_config,
         logic_rules=logic_rules,
+        scenarios=scenarios,
+        scenario_configs=scenario_configs,
         created_at=db_category.created_at,
         updated_at=db_category.updated_at
     )

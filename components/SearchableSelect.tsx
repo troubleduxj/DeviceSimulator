@@ -12,6 +12,7 @@ interface SearchableSelectProps {
   onChange: (value: string) => void;
   placeholder?: string;
   className?: string;
+  theme?: 'dark' | 'light';
 }
 
 export const SearchableSelect: React.FC<SearchableSelectProps> = ({
@@ -19,12 +20,24 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   value,
   onChange,
   placeholder = "Select...",
-  className = ""
+  className = "",
+  theme = "dark"
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const wrapperRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const isDark = theme === 'dark';
+  const bgClass = isDark ? 'bg-slate-900' : 'bg-white';
+  const borderClass = isDark ? 'border-slate-700' : 'border-slate-300';
+  const textClass = isDark ? 'text-white' : 'text-slate-900';
+  const placeholderClass = isDark ? 'text-slate-500' : 'text-slate-400';
+  const dropdownBgClass = isDark ? 'bg-black' : 'bg-white';
+  const dropdownBorderClass = isDark ? 'border-slate-700' : 'border-slate-200';
+  const inputBgClass = isDark ? 'bg-slate-900' : 'bg-slate-50';
+  const hoverClass = isDark ? 'hover:bg-slate-900' : 'hover:bg-slate-100';
+  const itemTextClass = isDark ? 'text-slate-300' : 'text-slate-700';
 
   const selectedOption = options.find(opt => opt.value === value);
 
@@ -64,17 +77,17 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm text-white hover:border-slate-600 focus:border-purple-500 outline-none transition-colors"
+        className={`w-full flex items-center justify-between ${bgClass} ${borderClass} border rounded px-3 py-1.5 text-sm ${textClass} hover:border-blue-500 focus:border-purple-500 outline-none transition-colors`}
       >
         <span className="truncate">
-          {selectedOption ? selectedOption.label : <span className="text-slate-500">{placeholder}</span>}
+          {selectedOption ? selectedOption.label : <span className={placeholderClass}>{placeholder}</span>}
         </span>
         <ChevronDown size={14} className={`text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (
-        <div className="absolute z-50 w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg shadow-xl overflow-hidden max-h-[300px] flex flex-col">
-          <div className="p-2 border-b border-slate-800 bg-slate-900 sticky top-0">
+        <div className={`absolute z-50 w-full mt-1 ${dropdownBgClass} ${dropdownBorderClass} border rounded-lg shadow-xl overflow-hidden max-h-[300px] flex flex-col`}>
+          <div className={`p-2 border-b ${dropdownBorderClass} ${dropdownBgClass} sticky top-0`}>
             <div className="relative">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
               <input
@@ -83,7 +96,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 placeholder="Search..."
-                className="w-full bg-slate-800 border border-slate-700 rounded pl-8 pr-2 py-1 text-xs text-white focus:border-blue-500 outline-none"
+                className={`w-full ${inputBgClass} ${dropdownBorderClass} border rounded pl-8 pr-2 py-1 text-xs ${textClass} focus:border-blue-500 outline-none`}
                 onClick={e => e.stopPropagation()}
               />
               {searchTerm && (
@@ -93,7 +106,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
                         setSearchTerm('');
                         inputRef.current?.focus();
                     }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
+                    className={`absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:${textClass}`}
                 >
                     <X size={12} />
                 </button>
@@ -110,8 +123,8 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
                     onChange(option.value);
                     setIsOpen(false);
                   }}
-                  className={`w-full text-left px-3 py-2 text-sm rounded hover:bg-slate-800 transition-colors flex items-center justify-between ${
-                    option.value === value ? 'bg-blue-600/20 text-blue-400' : 'text-slate-300'
+                  className={`w-full text-left px-3 py-2 text-sm rounded ${hoverClass} transition-colors flex items-center justify-between ${
+                    option.value === value ? 'bg-blue-600/20 text-blue-400' : itemTextClass
                   }`}
                 >
                   <span className="truncate">{option.label}</span>

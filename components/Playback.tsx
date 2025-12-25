@@ -14,9 +14,20 @@ interface PlaybackProps {
   activeDeviceId: string;
   onDeviceChange: (id: string) => void;
   dict: any;
+  theme?: 'dark' | 'light';
 }
 
-export const Playback: React.FC<PlaybackProps> = ({ devices, activeDeviceId, onDeviceChange, dict }) => {
+export const Playback: React.FC<PlaybackProps> = ({ devices, activeDeviceId, onDeviceChange, dict, theme = 'dark' }) => {
+  const isDark = theme === 'dark';
+  const cardClass = isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200 shadow-sm';
+  const bgClass = isDark ? 'bg-slate-900' : 'bg-slate-50';
+  const textPrimary = isDark ? 'text-white' : 'text-slate-800';
+  const textMuted = isDark ? 'text-slate-500' : 'text-slate-400';
+  const borderClass = isDark ? 'border-slate-700' : 'border-slate-200';
+  const inputClass = isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900';
+  const gridColor = isDark ? '#1e293b' : '#e2e8f0'; // Optimized grid color
+  const axisColor = isDark ? '#64748b' : '#94a3b8'; // Optimized axis color
+  
   // State
   // const [selectedDeviceId, setSelectedDeviceId] = useState<string>(devices[0]?.id || ''); // Managed by parent
   const [startTime, setStartTime] = useState('');
@@ -159,16 +170,16 @@ export const Playback: React.FC<PlaybackProps> = ({ devices, activeDeviceId, onD
   };
 
   return (
-    <div className="h-full flex flex-col bg-slate-900/50 rounded-lg border border-slate-800 overflow-hidden">
+    <div className={`h-full flex flex-col ${cardClass} rounded-lg border overflow-hidden`}>
       {/* Header / Controls */}
-      <div className="p-4 border-b border-slate-800 bg-slate-900 flex flex-wrap gap-4 items-center justify-between">
+      <div className={`p-4 border-b ${borderClass} ${bgClass} flex flex-wrap gap-4 items-center justify-between`}>
         <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
                 <Activity className="text-purple-500" />
-                <h2 className="text-lg font-bold text-white">{dict.playbackTitle || 'Historical Playback'}</h2>
+                <h2 className={`text-lg font-bold ${textPrimary}`}>{dict.playbackTitle || 'Historical Playback'}</h2>
             </div>
             
-            <div className="h-8 w-px bg-slate-800 mx-2" />
+            <div className={`h-8 w-px ${isDark ? 'bg-slate-800' : 'bg-slate-200'} mx-2`} />
             
             <div className="w-64">
                 <SearchableSelect 
@@ -176,28 +187,29 @@ export const Playback: React.FC<PlaybackProps> = ({ devices, activeDeviceId, onD
                     value={activeDeviceId}
                     onChange={onDeviceChange}
                     placeholder="Select device..."
+                    theme={theme}
                 />
             </div>
         </div>
 
-        <div className="flex items-center gap-3 bg-slate-800/50 p-1.5 rounded border border-slate-700">
+        <div className={`flex items-center gap-3 ${isDark ? 'bg-slate-900' : 'bg-slate-100'} p-1.5 rounded border ${isDark ? 'border-slate-700' : 'border-slate-300'}`}>
             <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-500 uppercase font-bold px-2">{dict.startTime || 'Start'}</span>
+                <span className={`text-xs ${textMuted} uppercase font-bold px-2`}>{dict.startTime || 'Start'}</span>
                 <input 
                     type="datetime-local" 
                     value={startTime}
                     onChange={e => setStartTime(e.target.value)}
-                    className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white outline-none"
+                    className={`${inputClass} rounded px-2 py-1 text-xs outline-none`}
                 />
             </div>
-            <span className="text-slate-600">-</span>
+            <span className={textMuted}>-</span>
             <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-500 uppercase font-bold px-2">{dict.endTime || 'End'}</span>
+                <span className={`text-xs ${textMuted} uppercase font-bold px-2`}>{dict.endTime || 'End'}</span>
                 <input 
                     type="datetime-local" 
                     value={endTime}
                     onChange={e => setEndTime(e.target.value)}
-                    className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white outline-none"
+                    className={`${inputClass} rounded px-2 py-1 text-xs outline-none`}
                 />
             </div>
             <button 
@@ -214,30 +226,30 @@ export const Playback: React.FC<PlaybackProps> = ({ devices, activeDeviceId, onD
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
           
           {/* Player Bar */}
-          <div className="bg-slate-900 border-b border-slate-800 p-4 flex items-center gap-6">
+          <div className={`${bgClass} border-b ${borderClass} p-4 flex items-center gap-6`}>
               <div className="flex items-center gap-2">
                   <button 
                     onClick={() => { setIsPlaying(false); setCurrentIndex(0); }}
-                    className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded"
+                    className={`p-2 ${textMuted} hover:${textPrimary} hover:${isDark ? 'bg-slate-800' : 'bg-slate-200'} rounded`}
                   >
                       <SkipBack size={20} />
                   </button>
                   <button 
                     onClick={() => setIsPlaying(!isPlaying)}
-                    className={`p-3 rounded-full ${isPlaying ? 'bg-purple-600 text-white' : 'bg-slate-700 text-white hover:bg-slate-600'}`}
+                    className={`p-3 rounded-full ${isPlaying ? 'bg-purple-600 text-white' : `${isDark ? 'bg-slate-700' : 'bg-slate-200'} ${textPrimary} hover:${isDark ? 'bg-slate-600' : 'bg-slate-300'}`}`}
                   >
                       {isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" />}
                   </button>
                   <button 
                     onClick={() => setIsPlaying(false)}
-                    className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded"
+                    className={`p-2 ${textMuted} hover:${textPrimary} hover:${isDark ? 'bg-slate-800' : 'bg-slate-200'} rounded`}
                   >
                       <Square size={20} fill="currentColor" />
                   </button>
               </div>
 
               <div className="flex-1 flex flex-col justify-center gap-1">
-                  <div className="flex justify-between text-xs text-slate-400 font-mono">
+                  <div className={`flex justify-between text-xs ${textMuted} font-mono`}>
                       <span>{currentData ? new Date(currentData.ts).toLocaleString() : '--:--:--'}</span>
                       <span>{playbackData.length > 0 ? `${currentIndex + 1} / ${playbackData.length}` : '0 / 0'}</span>
                   </div>
@@ -250,22 +262,22 @@ export const Playback: React.FC<PlaybackProps> = ({ devices, activeDeviceId, onD
                         setIsPlaying(false);
                         setCurrentIndex(parseInt(e.target.value));
                     }}
-                    className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-purple-500"
+                    className={`w-full h-2 ${isDark ? 'bg-slate-700' : 'bg-slate-300'} rounded-lg appearance-none cursor-pointer accent-purple-500`}
                   />
               </div>
 
               <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-500 font-bold">SPEED</span>
+                  <span className={`text-xs ${textMuted} font-bold`}>SPEED</span>
                   <select 
                     value={playbackSpeed}
                     onChange={e => setPlaybackSpeed(Number(e.target.value))}
-                    className="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-white outline-none"
+                    className={`${inputClass} rounded px-2 py-1 text-xs outline-none`}
                   >
-                      <option value="1">1x</option>
-                      <option value="2">2x</option>
-                      <option value="5">5x</option>
-                      <option value="10">10x</option>
-                      <option value="50">50x</option>
+                      <option value="1" className={isDark ? 'bg-slate-800' : 'bg-white'}>1x</option>
+                      <option value="2" className={isDark ? 'bg-slate-800' : 'bg-white'}>2x</option>
+                      <option value="5" className={isDark ? 'bg-slate-800' : 'bg-white'}>5x</option>
+                      <option value="10" className={isDark ? 'bg-slate-800' : 'bg-white'}>10x</option>
+                      <option value="50" className={isDark ? 'bg-slate-800' : 'bg-white'}>50x</option>
                   </select>
               </div>
           </div>
@@ -273,7 +285,7 @@ export const Playback: React.FC<PlaybackProps> = ({ devices, activeDeviceId, onD
           {/* Dashboard View */}
           <div className="flex-1 p-6 overflow-y-auto no-scrollbar">
               {playbackData.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-slate-500 gap-4">
+                  <div className={`h-full flex flex-col items-center justify-center ${textMuted} gap-4`}>
                       <Calendar size={48} className="opacity-20" />
                       <p>Select a device and time range to load historical data.</p>
                   </div>
@@ -282,35 +294,35 @@ export const Playback: React.FC<PlaybackProps> = ({ devices, activeDeviceId, onD
                       {/* KPI Cards */}
                       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                           {selectedDevice?.parameters.filter(p => p.type === '数值').slice(0, 6).map(param => (
-                              <div key={param.id} className="bg-slate-800 p-4 rounded border border-slate-700">
-                                  <div className="text-xs text-slate-500 uppercase font-bold mb-1 truncate">{param.name}</div>
-                                  <div className="text-2xl font-mono text-white font-bold">
+                              <div key={param.id} className={`${isDark ? 'bg-slate-800' : 'bg-slate-100'} p-4 rounded border ${isDark ? 'border-slate-700' : 'border-slate-300'}`}>
+                                  <div className={`text-xs ${textMuted} uppercase font-bold mb-1 truncate`}>{param.name}</div>
+                                  <div className={`text-2xl font-mono ${textPrimary} font-bold`}>
                                       {getMetricValue(param.id || param.name)}
-                                      <span className="text-sm text-slate-500 ml-1 font-normal">{param.unit}</span>
+                                      <span className={`text-sm ${textMuted} ml-1 font-normal`}>{param.unit}</span>
                                   </div>
                               </div>
                           ))}
                       </div>
 
                       {/* Main Chart */}
-                      <div className="flex-1 bg-slate-800 p-4 rounded border border-slate-700 min-h-[300px]">
-                          <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+                      <div className={`flex-1 ${isDark ? 'bg-slate-800' : 'bg-slate-100'} p-4 rounded border ${isDark ? 'border-slate-700' : 'border-slate-300'} min-h-[300px]`}>
+                          <h3 className={`text-sm font-bold ${textPrimary} mb-4 flex items-center gap-2`}>
                               <Activity size={16} className="text-blue-400" />
                               Trend Analysis
                           </h3>
                           <div className="h-[calc(100%-30px)] w-full">
                               <ResponsiveContainer width="100%" height="100%">
                                   <LineChart data={chartData}>
-                                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                                      <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
                                       <XAxis 
                                         dataKey="ts" 
                                         tickFormatter={(ts) => new Date(ts).toLocaleTimeString()} 
-                                        stroke="#64748b"
+                                        stroke={axisColor}
                                         fontSize={12}
                                       />
-                                      <YAxis stroke="#64748b" fontSize={12} />
+                                      <YAxis stroke={axisColor} fontSize={12} />
                                       <Tooltip 
-                                        contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', color: '#f1f5f9' }}
+                                        contentStyle={isDark ? { backgroundColor: '#0f172a', borderColor: '#1e293b', color: '#f1f5f9' } : { backgroundColor: '#ffffff', borderColor: '#e2e8f0', color: '#1e293b' }}
                                         labelFormatter={(label) => new Date(label).toLocaleString()}
                                       />
                                       {/* Render first 3 numeric params */}
@@ -328,7 +340,7 @@ export const Playback: React.FC<PlaybackProps> = ({ devices, activeDeviceId, onD
                                       ))}
                                       {/* Current Position Line */}
                                       {currentData && (
-                                          <ReferenceLine x={currentData.ts} stroke="white" strokeDasharray="3 3" />
+                                          <ReferenceLine x={currentData.ts} stroke={isDark ? "white" : "#334155"} strokeDasharray="3 3" />
                                       )}
                                   </LineChart>
                               </ResponsiveContainer>

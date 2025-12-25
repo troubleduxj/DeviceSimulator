@@ -26,11 +26,11 @@ export class ErrorBoundary extends Component<Props, State> {
   public render() {
     if (this.state.hasError) {
       return this.props.fallback || (
-        <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 text-slate-400 p-4 border border-slate-800 rounded-lg">
+        <div className="w-full h-full flex flex-col items-center justify-center bg-black text-slate-400 p-4 border border-slate-800 rounded-lg">
           <h2 className="text-lg font-bold text-red-400 mb-2">View Error / 视图错误</h2>
           <p className="text-sm text-center mb-4">The component encountered an error. / 组件遇到错误。</p>
           <button
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded text-sm transition-colors border border-slate-700"
+            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 rounded text-sm transition-colors border border-slate-700"
             onClick={() => this.setState({ hasError: false })}
           >
             Retry / 重试

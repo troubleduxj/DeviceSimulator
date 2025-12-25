@@ -47,6 +47,9 @@ class DeviceService:
                     status=device_db.status,
                     physics_config=device_db.physics_config if device_db.physics_config else {},
                     logic_rules=device_db.logic_rules if device_db.logic_rules else [],
+                    scenarios=device_db.scenarios if device_db.scenarios else ["Normal", "High Load", "Error State"],
+                    scenario_configs=device_db.scenario_configs if device_db.scenario_configs else {},
+                    current_scenario=device_db.current_scenario,
                     created_at=device_db.created_at,
                     updated_at=device_db.updated_at
                 )
@@ -85,6 +88,9 @@ class DeviceService:
                 status=device_db.status,
                 physics_config=device_db.physics_config if device_db.physics_config else {},
                 logic_rules=device_db.logic_rules if device_db.logic_rules else [],
+                scenarios=device_db.scenarios if device_db.scenarios else ["Normal", "High Load", "Error State"],
+                scenario_configs=device_db.scenario_configs if device_db.scenario_configs else {},
+                current_scenario=device_db.current_scenario,
                 created_at=device_db.created_at,
                 updated_at=device_db.updated_at
             )
@@ -125,6 +131,9 @@ class DeviceService:
                 status=device.status,
                 physics_config=device.physics_config,
                 logic_rules=device.logic_rules,
+                scenarios=device.scenarios,
+                current_scenario=device.current_scenario, # Add current_scenario
+                scenario_configs=device.scenario_configs,
                 created_at=device.created_at,
                 updated_at=device.updated_at
             )
@@ -222,6 +231,9 @@ class DeviceService:
             existing_device.status = device.status
             existing_device.physics_config = device.physics_config
             existing_device.logic_rules = device.logic_rules
+            existing_device.scenarios = device.scenarios
+            existing_device.current_scenario = device.current_scenario # Add current_scenario
+            existing_device.scenario_configs = device.scenario_configs
             existing_device.updated_at = device.updated_at
             
             db.commit()
@@ -323,6 +335,8 @@ class DeviceService:
                 status=existing_device.status,
                 physics_config=existing_device.physics_config if existing_device.physics_config else {},
                 logic_rules=existing_device.logic_rules if existing_device.logic_rules else [],
+                scenarios=existing_device.scenarios if existing_device.scenarios else ["Normal", "High Load", "Error State"],
+                scenario_configs=existing_device.scenario_configs if existing_device.scenario_configs else {},
                 created_at=existing_device.created_at,
                 updated_at=existing_device.updated_at
             )

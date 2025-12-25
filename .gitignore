@@ -46,3 +46,8 @@ Thumbs.db
 *.njsproj
 *.sln
 
+# Build Artifacts
+dist_electron/
+release/
+build/
+builder-cache/

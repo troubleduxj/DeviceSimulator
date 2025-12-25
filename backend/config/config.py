@@ -8,7 +8,12 @@ from typing import Optional
 # dirname(2) = backend
 # dirname(3) = DeviceSimulator (root)
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-DB_PATH = os.path.join(PROJECT_ROOT, "backend", "device_simulator.db")
+
+# Check for environment variable override (for packaged app)
+if os.environ.get('IOT_SIMULATOR_DB_PATH'):
+    DB_PATH = os.environ.get('IOT_SIMULATOR_DB_PATH')
+else:
+    DB_PATH = os.path.join(PROJECT_ROOT, "backend", "device_simulator.db")
 
 class Settings(BaseSettings):
     # TDengine配置 - 现在作为默认值，实际配置从数据库读取

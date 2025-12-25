@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from config.config import settings
-from api import device, data, system, category, simulation_model
+from api import device, data, system, category, simulation_model, ai
 from services.database_service import Base, engine
 from services.data_writer import data_writer
 from models import config, category as category_model  # 确保导入 config 和 category 模型
@@ -30,6 +30,7 @@ app.include_router(data.router, prefix="/api/data", tags=["data"])
 app.include_router(system.router, prefix="/api/system", tags=["system"])
 app.include_router(category.router, prefix="/api/category", tags=["category"])
 app.include_router(simulation_model.router, prefix="/api/simulation-model", tags=["simulation-model"])
+app.include_router(ai.router, prefix="/api/ai", tags=["ai"])
 
 @app.on_event("startup")
 async def startup_event():

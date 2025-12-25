@@ -33,6 +33,11 @@ class SimulationModelService:
         if isinstance(logic_rules, str):
             try: logic_rules = json.loads(logic_rules)
             except: logic_rules = []
+
+        visual_config = db_model.visual_config or {}
+        if isinstance(visual_config, str):
+            try: visual_config = json.loads(visual_config)
+            except: visual_config = {}
                 
         return SimulationModel(
             id=db_model.id,
@@ -41,6 +46,7 @@ class SimulationModelService:
             description=db_model.description,
             parameters=parameters,
             physics_config=physics_config,
+            visual_config=visual_config,
             logic_rules=logic_rules,
             created_at=db_model.created_at,
             updated_at=db_model.updated_at
@@ -85,6 +91,7 @@ class SimulationModelService:
                 description=model.description,
                 parameters=[p.dict() for p in model.parameters],
                 physics_config=model.physics_config,
+                visual_config=model.visual_config,
                 logic_rules=model.logic_rules
             )
             
@@ -112,6 +119,7 @@ class SimulationModelService:
             db_obj.description = model_update.description
             db_obj.parameters = [p.dict() for p in model_update.parameters]
             db_obj.physics_config = model_update.physics_config
+            db_obj.visual_config = model_update.visual_config
             db_obj.logic_rules = model_update.logic_rules
             
             db.commit()
